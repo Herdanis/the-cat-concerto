@@ -1,0 +1,52 @@
+# ============================================
+# CI on main push
+# ============================================
+# Keeps VERSION current: fails when the newest
+# v* tag is newer than main's VERSION file, so
+# curl-from-main installs never mislabel.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  version-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: VERSION must match or exceed newest tag
+        run: |
+          set -euo pipefail
+
+          latest_tag=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 | sed 's/^v//')
+          version=$(tr -d '[:space:]' < VERSION)
+
+          if [ -z "$latest_tag" ]; then
+            echo "no tags yet — nothing to compare"
+            exit 0
+          fi
+
+          echo "newest tag: $latest_tag"
+          echo "VERSION:    $version"
+
+          if [ "$(printf '%s\n%s\n' "$latest_tag" "$version" | sort -V | head -n1)" != "$latest_tag" ] \
+             && [ "$latest_tag" != "$version" ]; then
+            echo "::error::VERSION ($version) is older than newest tag (v$latest_tag). Bump VERSION before/with your next main push."
+            exit 1
+          fi
+
+  test-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run installer test suite
+        run: bash tests/test-install.sh
