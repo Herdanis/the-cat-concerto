@@ -73,3 +73,16 @@ jobs:
             gh release create "$TAG" --title "$TAG" --generate-notes \
               || echo "release $TAG already exists" >&2
           fi
+
+      # ============================================
+      # Maintain the latest-release moving tag
+      # ============================================
+      # curl one-liner in README fetches from this
+      # tag; repoint it at the newest release.
+      - name: Update latest-release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          git tag -f latest-release "$TAG"
+          git push origin latest-release --force

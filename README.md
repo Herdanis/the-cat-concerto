@@ -12,11 +12,27 @@ result.
 
 1. **herdr** — `brew install herdr` or see https://herdr.dev
    (the installer warns but proceeds without it; delegation needs it)
-2. **herdr skill** for your harness — either:
-   - `herdr integration install <harness>` (preferred; always current), or
-   - `--herdr-skill vendor` at install time to use the bundled snapshot
+
+The herdr skill for your harness is handled during install: run it
+via herdr, install the bundled snapshot, or skip (the command is
+printed at the end).
 
 ## Install
+
+One-liner — interactive, no clone needed:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Herdanis/the-cat-concerto/latest-release/install.sh | bash
+```
+
+You get two questions (arrow keys + space to select, enter to
+confirm, backspace to go back):
+
+1. **Harness** (multi-select): opencode, claude, codex, gemini
+2. **herdr skill**: run `herdr integration install <harness>` now,
+   install the bundled snapshot, or skip
+
+Non-interactive (CI, scripts) — clone and pass flags:
 
 ```bash
 git clone --depth 1 --branch v0.1.0 https://github.com/Herdanis/the-cat-concerto /tmp/the-cat-concerto
@@ -31,10 +47,11 @@ Supported harnesses: `opencode`, `claude` (Claude Code), `codex`,
 
 | Flag | Values | Default | Meaning |
 |---|---|---|---|
-| `--harness` | opencode, claude, codex, gemini | required | target harness |
+| `--harness` | opencode, claude, codex, gemini (comma-sep for multiple) | interactive prompt | target harness(es) |
 | `--herdr-skill` | manual, vendor | manual | manual: prints the `herdr integration install` command; vendor: installs the bundled snapshot |
 | `--prefix DIR` | any dir | `$HOME` | install root (for testing) |
 | `--force` | — | off | overwrite files that lack concert markers |
+| `CONCERTO_NO_TUI=1` | env | — | numbered prompts instead of arrow-key TUI |
 
 ## What gets installed
 

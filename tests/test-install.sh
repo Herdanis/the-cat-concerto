@@ -88,6 +88,29 @@ if git -C "$CP2" tag v9.9.9 2>/dev/null; then
   check_false "T10 no double v marker" grep -q '^<!-- the-cat-concerto vv' "$TMP/h10/.config/opencode/agents/orchestrator.md"
 fi
 
+# T11: interactive multi-select via numbered fallback (piped stdin)
+OUT=$(printf '1,3\n3\n' | CONCERTO_NO_TUI=1 CONCERTO_STDIN=1 "$REPO/install.sh" --prefix "$TMP/h11" 2>&1)
+check "T11 opencode installed from interactive" test -f "$TMP/h11/.config/opencode/agents/orchestrator.md"
+check "T11 codex block installed" grep -qF '# BEGIN the-cat-concerto' "$TMP/h11/.codex/AGENTS.md"
+check "T11 claude not selected so not installed" test ! -f "$TMP/h11/.claude/CLAUDE.md"
+check "T11 skip prints herdr command" grep -q 'herdr skill not installed — run: herdr integration install opencode' <<<"$OUT"
+
+# T12: invalid multi-select input re-prompted, then valid
+OUT=$(printf '9\n1\n3\n' | CONCERTO_NO_TUI=1 CONCERTO_STDIN=1 "$REPO/install.sh" --prefix "$TMP/h12" 2>&1)
+check "T12 invalid input re-prompted then accepted" test -f "$TMP/h12/.config/opencode/agents/orchestrator.md"
+
+# T13: vendor via interactive picker (option 2 when herdr hidden = vendor first)
+OUT=$(printf '4\n1\n' | CONCERTO_NO_TUI=1 CONCERTO_STDIN=1 PATH="/usr/bin:/bin" "$REPO/install.sh" --prefix "$TMP/h13" 2>&1)
+check "T13 vendor skill inlined into gemini block" grep -q '^name: herdr' "$TMP/h13/.gemini/GEMINI.md"
+
+# T14: no tty, no flags, no CONCERTO_NO_TUI → usage exit 2
+check_false "T14 no-tty no-flags exits 2" sh -c 'cd "'"$REPO"'" && ./install.sh </dev/null >/dev/null 2>&1'
+OUT=$(cd "$REPO" && ./install.sh </dev/null 2>&1); RC=$?
+check "T14 usage shows curl example" grep -q 'curl -fsSL' <<<"$OUT"
+
+# T15: bootstrap mode fails cleanly with unreachable API
+check_false "T15 bootstrap bad API fails" CONCERTO_API_OVERRIDE="http://127.0.0.1:1/nope" CONCERTO_BOOTSTRAP=1 bash -c 'cd "$TMP" && cp "'"$REPO"'/install.sh" "$TMP/bs/install.sh" 2>/dev/null || (mkdir -p "$TMP/bs" && cp "'"$REPO"'/install.sh" "$TMP/bs/install.sh"); cd "$TMP/bs" && bash install.sh'
+
 echo
 echo "passed=$PASS failed=$FAIL"
 [[ $FAIL -eq 0 ]]
