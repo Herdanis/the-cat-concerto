@@ -5,12 +5,14 @@
 set -euo pipefail
 
 SRCDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ORIG_ARGS=("$@")
 HARNESS=""
 HARNESS_MULTI=""
 HERDR_SKILL="manual"
 PREFIX=""
 FORCE=0
 FAILED=0
+INTERACTIVE_USED=0
 BLOCK_BEGIN="# BEGIN the-cat-concerto"
 BLOCK_END="# END the-cat-concerto"
 HARNESS_KINDS="opencode claude codex gemini"
@@ -54,8 +56,8 @@ if [[ ! -d "$SRCDIR/src" ]]; then
   if [[ -n "$HARNESS" || -n "$PREFIX" || -n "${CONCERTO_BOOTSTRAP:-}" ]]; then
     : # flags given or already bootstrapping — error below
   elif command -v curl >/dev/null 2>&1; then
-    API="https://api.github.com/repos/Herdanis/the-cat-concerto/releases/latest"
-    TAG="$(curl -sf "$API" 2>/dev/null | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n1)"
+    API="${CONCERTO_API_OVERRIDE:-https://api.github.com/repos/Herdanis/the-cat-concerto/releases/latest}"
+    TAG="$(curl -sf "$API" 2>/dev/null | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n1 || true)"
     if [[ -z "$TAG" ]]; then
       echo "error: could not resolve latest release ($API)" >&2
       exit 1
@@ -68,10 +70,9 @@ if [[ ! -d "$SRCDIR/src" ]]; then
     fi
     tar -xzf "$WORK/src.tar.gz" -C "$WORK" || { echo "error: extract failed" >&2; exit 1; }
     DIR="$WORK/the-cat-concerto-$TAG"
-    DIR="${DIR#the-cat-concerto-v}"
     [[ -d "$DIR" ]] || DIR="$(ls -d "$WORK"/the-cat-concerto-* | head -n1)"
     export CONCERTO_BOOTSTRAP=1
-    exec bash "$DIR/install.sh" "$@"
+    exec bash "$DIR/install.sh" "${ORIG_ARGS[@]}"
   fi
   echo "error: no the-cat-concerto checkout beside this script (src/ not found)" >&2
   echo "hint:  use the curl one-liner from the README, or clone the repo first" >&2
@@ -104,7 +105,7 @@ fi
 # ============================================
 # Interactive mode (no flags, tty present)
 # ============================================
-have_tty() { [[ -t 0 && -t 2 ]]; }
+have_tty() { [[ -t 2 ]]; }
 
 # Renders a selection screen. Sets SELECTED[] (names) and returns 0 on
 # confirm, 1 on backspace.
@@ -229,7 +230,7 @@ num_select() { # sets SELECTED — uses SEL_TITLE/SEL_ITEMS/SEL_MULTI
       IFS=',' read -ra parts <<< "$answer"
       for part in "${parts[@]}"; do
         [[ "$part" =~ ^[0-9]+$ ]] || { bad=1; break; }
-        idx=$((part - 1))
+        idx=$((10#$part - 1))
         if (( idx < 0 || idx >= n )); then bad=1; break; fi
         local dup=0 s
         for s in "${SELECTED[@]:-}"; do [[ "$s" == "${SEL_ITEMS[$idx]}" ]] && dup=1; done
@@ -287,12 +288,14 @@ choose_skill() {
 if [[ -z "$HARNESS" ]]; then
   if have_tty || [[ "${CONCERTO_NO_TUI:-}" == "1" ]]; then
     INTERACTIVE_USED=1
-    HARNESS_MULTI="$(choose_harnesses || true)"
-    if [[ -z "${HARNESS_MULTI:-}" ]]; then
-      echo "cancelled."
-      exit 0
-    fi
-    SKILL_PICK="$(choose_skill || true)"
+    while true; do
+      HARNESS_MULTI="$(choose_harnesses || true)"
+      if [[ -z "${HARNESS_MULTI:-}" ]]; then
+        echo "cancelled."
+        exit 0
+      fi
+      if SKILL_PICK="$(choose_skill)"; then break; fi
+    done
     case "${SKILL_PICK:-skip}" in
       run)    HERDR_SKILL="manual"; RUN_HERDR=1 ;;
       vendor) HERDR_SKILL="vendor" ;;

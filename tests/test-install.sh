@@ -95,8 +95,8 @@ check "T11 codex block installed" grep -qF '# BEGIN the-cat-concerto' "$TMP/h11/
 check "T11 claude not selected so not installed" test ! -f "$TMP/h11/.claude/CLAUDE.md"
 check "T11 skip prints herdr command" grep -q 'herdr skill not installed — run: herdr integration install opencode' <<<"$OUT"
 
-# T12: invalid multi-select input re-prompted, then valid
-OUT=$(printf '9\n1\n3\n' | CONCERTO_NO_TUI=1 CONCERTO_STDIN=1 "$REPO/install.sh" --prefix "$TMP/h12" 2>&1)
+# T12: invalid multi-select input re-prompted, then valid ("08" guards octal)
+OUT=$(printf '9\n08\n1\n3\n' | CONCERTO_NO_TUI=1 CONCERTO_STDIN=1 "$REPO/install.sh" --prefix "$TMP/h12" 2>&1)
 check "T12 invalid input re-prompted then accepted" test -f "$TMP/h12/.config/opencode/agents/orchestrator.md"
 
 # T13: vendor via interactive picker (option 2 when herdr hidden = vendor first)
@@ -108,8 +108,11 @@ check_false "T14 no-tty no-flags exits 2" sh -c 'cd "'"$REPO"'" && ./install.sh 
 OUT=$(cd "$REPO" && ./install.sh </dev/null 2>&1); RC=$?
 check "T14 usage shows curl example" grep -q 'curl -fsSL' <<<"$OUT"
 
-# T15: bootstrap mode fails cleanly with unreachable API
-check_false "T15 bootstrap bad API fails" CONCERTO_API_OVERRIDE="http://127.0.0.1:1/nope" CONCERTO_BOOTSTRAP=1 bash -c 'cd "$TMP" && cp "'"$REPO"'/install.sh" "$TMP/bs/install.sh" 2>/dev/null || (mkdir -p "$TMP/bs" && cp "'"$REPO"'/install.sh" "$TMP/bs/install.sh"); cd "$TMP/bs" && bash install.sh'
+# T15: bootstrap (no src/ beside script) fails cleanly with unreachable API
+mkdir -p "$TMP/bs"; cp "$REPO/install.sh" "$TMP/bs/install.sh"
+OUT=$(cd "$TMP/bs" && CONCERTO_API_OVERRIDE="http://127.0.0.1:1/nope" bash install.sh 2>&1); RC=$?
+check_false "T15 bootstrap bad API exits non-zero" test "$RC" -eq 0
+check "T15 friendly release error" grep -q 'could not resolve latest release' <<<"$OUT"
 
 echo
 echo "passed=$PASS failed=$FAIL"
