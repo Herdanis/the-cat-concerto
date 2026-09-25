@@ -35,7 +35,7 @@ confirm, backspace to go back):
 Non-interactive (CI, scripts) — clone and pass flags:
 
 ```bash
-git clone --depth 1 --branch v0.1.0 https://github.com/Herdanis/the-cat-concerto /tmp/the-cat-concerto
+git clone --depth 1 --branch v0.1.1 https://github.com/Herdanis/the-cat-concerto /tmp/the-cat-concerto
 /tmp/the-cat-concerto/install.sh --harness <harness>
 ```
 

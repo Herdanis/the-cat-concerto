@@ -316,6 +316,7 @@ if [[ -z "${HARNESS_MULTI:-}" ]]; then
   exit 2
 fi
 SELECTED_HARNESS=()
+HARNESS_MULTI="${HARNESS_MULTI//,/ }"
 IFS=' ' read -ra _h <<< "$HARNESS_MULTI"
 for _x in "${_h[@]}"; do
   case "$_x" in
