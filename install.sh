@@ -4,7 +4,11 @@
 # ============================================
 set -euo pipefail
 
-SRCDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -n "${BASH_SOURCE[0]:-}" ]]; then
+  SRCDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+else
+  SRCDIR="$PWD"   # curl|bash: script read from stdin, bootstrap decides
+fi
 ORIG_ARGS=("$@")
 HARNESS=""
 HARNESS_MULTI=""
@@ -53,9 +57,7 @@ done
 # Bootstrap: curl|bash — no checkout beside script
 # ============================================
 if [[ ! -d "$SRCDIR/src" ]]; then
-  if [[ -n "$HARNESS" || -n "$PREFIX" || -n "${CONCERTO_BOOTSTRAP:-}" ]]; then
-    : # flags given or already bootstrapping — error below
-  elif command -v curl >/dev/null 2>&1; then
+  if command -v curl >/dev/null 2>&1; then
     API="${CONCERTO_API_OVERRIDE:-https://api.github.com/repos/Herdanis/the-cat-concerto/releases/latest}"
     TAG="$(curl -sf "$API" 2>/dev/null | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n1 || true)"
     if [[ -z "$TAG" ]]; then
@@ -69,9 +71,8 @@ if [[ ! -d "$SRCDIR/src" ]]; then
       exit 1
     fi
     tar -xzf "$WORK/src.tar.gz" -C "$WORK" || { echo "error: extract failed" >&2; exit 1; }
-    DIR="$WORK/the-cat-concerto-$TAG"
+    DIR="$WORK/the-cat-concerto-${TAG#v}"
     [[ -d "$DIR" ]] || DIR="$(ls -d "$WORK"/the-cat-concerto-* | head -n1)"
-    export CONCERTO_BOOTSTRAP=1
     exec bash "$DIR/install.sh" ${ORIG_ARGS[@]+"${ORIG_ARGS[@]}"}
   fi
   echo "error: no the-cat-concerto checkout beside this script (src/ not found)" >&2

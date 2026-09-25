@@ -115,6 +115,13 @@ OUT=$(cd "$TMP/bs" && CONCERTO_API_OVERRIDE="http://127.0.0.1:1/nope" bash insta
 check_false "T15 bootstrap bad API exits non-zero" test "$RC" -eq 0
 check "T15 friendly release error" grep -q 'could not resolve latest release' <<<"$OUT"
 
+# T16: piped-stdin script (curl|bash shape) — BASH_SOURCE unset, must
+# reach bootstrap, not die on unbound variable
+OUT=$(cd "$TMP" && CONCERTO_API_OVERRIDE="http://127.0.0.1:1/nope" bash -s < "$REPO/install.sh" 2>&1); RC=$?
+check_false "T16 piped script exits nonzero on bad API" test "$RC" -eq 0
+check "T16 piped script reaches bootstrap error" grep -q 'could not resolve latest release' <<<"$OUT"
+check "T16 no unbound BASH_SOURCE error" grep -qv 'BASH_SOURCE' <<<"$OUT"
+
 echo
 echo "passed=$PASS failed=$FAIL"
 [[ $FAIL -eq 0 ]]
