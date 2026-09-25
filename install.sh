@@ -28,7 +28,7 @@ Usage: install.sh --harness <opencode|claude|codex|gemini> [options]
 
 Or the one-liner (no clone needed):
 
-  curl -fsSL https://raw.githubusercontent.com/Herdanis/the-cat-concerto/latest-release/install.sh | bash
+  curl -fsSL https://raw.githubusercontent.com/Herdanis/the-cat-concerto/main/install.sh | bash
 
 Options:
   --harness X[,Y...]           one or more of: opencode claude codex gemini
@@ -58,20 +58,14 @@ done
 # ============================================
 if [[ ! -d "$SRCDIR/src" ]]; then
   if command -v curl >/dev/null 2>&1; then
-    API="${CONCERTO_API_OVERRIDE:-https://api.github.com/repos/Herdanis/the-cat-concerto/releases/latest}"
-    TAG="$(curl -sf "$API" 2>/dev/null | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n1 || true)"
-    if [[ -z "$TAG" ]]; then
-      echo "error: could not resolve latest release ($API)" >&2
-      exit 1
-    fi
-    TARBALL="https://github.com/Herdanis/the-cat-concerto/archive/refs/tags/$TAG.tar.gz"
+    TARBALL="${CONCERTO_TARBALL_OVERRIDE:-https://github.com/Herdanis/the-cat-concerto/archive/refs/heads/main.tar.gz}"
     WORK="$(mktemp -d)"
     if ! curl -sfL "$TARBALL" -o "$WORK/src.tar.gz"; then
       echo "error: download failed: $TARBALL" >&2
       exit 1
     fi
     tar -xzf "$WORK/src.tar.gz" -C "$WORK" || { echo "error: extract failed" >&2; exit 1; }
-    DIR="$WORK/the-cat-concerto-${TAG#v}"
+    DIR="$WORK/the-cat-concerto-main"
     [[ -d "$DIR" ]] || DIR="$(ls -d "$WORK"/the-cat-concerto-* | head -n1)"
     exec bash "$DIR/install.sh" ${ORIG_ARGS[@]+"${ORIG_ARGS[@]}"}
   fi

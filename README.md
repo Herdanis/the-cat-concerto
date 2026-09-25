@@ -22,8 +22,11 @@ printed at the end).
 One-liner — interactive, no clone needed:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Herdanis/the-cat-concerto/latest-release/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Herdanis/the-cat-concerto/main/install.sh | bash
 ```
+
+Tracks the latest commit on `main`. To pin a release instead, replace
+`main` with a tag (e.g. `v0.1.3`).
 
 You get two questions (arrow keys + space to select, enter to
 confirm, backspace to go back):

@@ -109,17 +109,17 @@ check_false "T14 no-tty no-flags exits 2" sh -c 'cd "'"$REPO"'" && ./install.sh 
 OUT=$(cd "$REPO" && ./install.sh </dev/null 2>&1); RC=$?
 check "T14 usage shows curl example" grep -q 'curl -fsSL' <<<"$OUT"
 
-# T15: bootstrap (no src/ beside script) fails cleanly with unreachable API
+# T15: bootstrap (no src/ beside script) fails cleanly with unreachable tarball
 mkdir -p "$TMP/bs"; cp "$REPO/install.sh" "$TMP/bs/install.sh"
-OUT=$(cd "$TMP/bs" && CONCERTO_API_OVERRIDE="http://127.0.0.1:1/nope" bash install.sh 2>&1); RC=$?
-check_false "T15 bootstrap bad API exits non-zero" test "$RC" -eq 0
-check "T15 friendly release error" grep -q 'could not resolve latest release' <<<"$OUT"
+OUT=$(cd "$TMP/bs" && CONCERTO_TARBALL_OVERRIDE="http://127.0.0.1:1/nope.tar.gz" bash install.sh 2>&1); RC=$?
+check_false "T15 bootstrap bad URL exits non-zero" test "$RC" -eq 0
+check "T15 friendly download error" grep -q 'download failed' <<<"$OUT"
 
 # T16: piped-stdin script (curl|bash shape) — BASH_SOURCE unset, must
 # reach bootstrap, not die on unbound variable
-OUT=$(cd "$TMP" && CONCERTO_API_OVERRIDE="http://127.0.0.1:1/nope" bash -s < "$REPO/install.sh" 2>&1); RC=$?
-check_false "T16 piped script exits nonzero on bad API" test "$RC" -eq 0
-check "T16 piped script reaches bootstrap error" grep -q 'could not resolve latest release' <<<"$OUT"
+OUT=$(cd "$TMP" && CONCERTO_TARBALL_OVERRIDE="http://127.0.0.1:1/nope.tar.gz" bash -s < "$REPO/install.sh" 2>&1); RC=$?
+check_false "T16 piped script exits nonzero on bad URL" test "$RC" -eq 0
+check "T16 piped script reaches bootstrap error" grep -q 'download failed' <<<"$OUT"
 check "T16 no unbound BASH_SOURCE error" grep -qv 'BASH_SOURCE' <<<"$OUT"
 
 echo
