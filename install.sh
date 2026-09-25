@@ -129,7 +129,62 @@ if [[ "$HARNESS" == opencode ]]; then
   [[ "$HERDR_SKILL" == vendor ]] && install_skill "$BASE/skills/herdr/SKILL.md"
 fi
 
-# block-mode harnesses land in Task 5
+# ============================================
+# Block mode: claude / codex / gemini
+# ============================================
+install_block() { # <file> <content-temp>
+  local file="$1" content="$2"
+  mkdir -p "$(dirname "$file")"
+  if [[ ! -f "$file" ]]; then
+    { echo "$BLOCK_BEGIN"; cat "$content"; echo; echo "$BLOCK_END"; } > "$file"
+    echo "  installed (new file): $file"
+    return 0
+  fi
+  if grep -qF "$BLOCK_BEGIN" "$file"; then
+    local current; current="$(mktemp)"
+    awk -v begin="$BLOCK_BEGIN" -v end="$BLOCK_END" '
+      index($0, begin) == 1 { inb = 1; next }
+      index($0, end) == 1 { inb = 0; exit }
+      inb { print }
+    ' "$file" > "$current"
+    if cmp -s "$current" "$content"; then
+      echo "  already installed ($VERSION): $file"
+    else
+      awk -v begin="$BLOCK_BEGIN" -v end="$BLOCK_END" -v cf="$content" '
+        index($0, begin) == 1 { print; while ((getline l < cf) > 0) print l; close(cf); inb = 1; next }
+        index($0, end) == 1 && inb { inb = 0 }
+        !inb { print }
+      ' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
+      echo "  updated block ($VERSION): $file"
+    fi
+    rm -f "$current"
+  else
+    { echo; echo "$BLOCK_BEGIN"; cat "$content"; echo; echo "$BLOCK_END"; } >> "$file"
+    echo "  appended block: $file"
+  fi
+}
+
+case "$HARNESS" in
+  claude) BLOCK_FILE="$ROOT/.claude/CLAUDE.md" ;;
+  codex)  BLOCK_FILE="$ROOT/.codex/AGENTS.md" ;;
+  gemini) BLOCK_FILE="$ROOT/.gemini/GEMINI.md" ;;
+esac
+
+if [[ -n "${BLOCK_FILE:-}" ]]; then
+  CONTENT="$(mktemp)"
+  {
+    printf '<!-- %s -->\n\n' "$MARKER"
+    cat "$SRCDIR/src/orchestrator.md"
+    echo
+    cat "$SRCDIR/src/worker.md"
+    if [[ "$HERDR_SKILL" == vendor ]]; then
+      echo
+      cat "$SRCDIR/vendor/herdr-skill/SKILL.md"
+    fi
+  } > "$CONTENT"
+  install_block "$BLOCK_FILE" "$CONTENT"
+  rm -f "$CONTENT"
+fi
 
 [[ "$FAILED" -eq 0 ]] || exit 1
 echo "done ($MARKER)."

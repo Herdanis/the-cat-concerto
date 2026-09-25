@@ -49,6 +49,35 @@ check "T4 refused file untouched" grep -q 'my own agent' "$TMP/h4/.config/openco
 "$REPO/install.sh" --harness opencode --prefix "$TMP/h4" --force >/dev/null 2>&1
 check "T4 forced overwrite" grep -q 'the-cat-concerto v' "$TMP/h4/.config/opencode/agents/orchestrator.md"
 
+# T5: claude block install creates file with block
+"$REPO/install.sh" --harness claude --prefix "$TMP/h5" >/dev/null 2>&1
+check "T5 claude CLAUDE.md created" test -f "$TMP/h5/.claude/CLAUDE.md"
+check "T5 block markers present" grep -qF '# BEGIN the-cat-concerto' "$TMP/h5/.claude/CLAUDE.md"
+check "T5 orchestrator body present" grep -q 'Role' "$TMP/h5/.claude/CLAUDE.md"
+check "T5 worker contract present" grep -q 'Worker Contract' "$TMP/h5/.claude/CLAUDE.md"
+
+# T6: block appended to existing user file, user content preserved
+mkdir -p "$TMP/h6/.codex"
+echo "my codex config" > "$TMP/h6/.codex/AGENTS.md"
+"$REPO/install.sh" --harness codex --prefix "$TMP/h6" >/dev/null 2>&1
+check "T6 user content preserved" grep -q 'my codex config' "$TMP/h6/.codex/AGENTS.md"
+check "T6 block appended" grep -qF '# BEGIN the-cat-concerto' "$TMP/h6/.codex/AGENTS.md"
+
+# T7: re-run keeps exactly one block
+"$REPO/install.sh" --harness codex --prefix "$TMP/h6" >/dev/null 2>&1
+check "T7 single block after re-run" test "$(grep -cF '# BEGIN the-cat-concerto' "$TMP/h6/.codex/AGENTS.md")" -eq 1
+check "T7 user content still preserved" grep -q 'my codex config' "$TMP/h6/.codex/AGENTS.md"
+
+# T8: vendor mode inlines skill into block
+"$REPO/install.sh" --harness gemini --prefix "$TMP/h8" --herdr-skill vendor >/dev/null 2>&1
+check "T8 vendored skill inlined" grep -q '^name: herdr' "$TMP/h8/.gemini/GEMINI.md"
+
+# T9: version bump replaces block content, keeps user content
+"$CP/install.sh" --harness codex --prefix "$TMP/h6" >/dev/null 2>&1
+check "T9 block upgraded" grep -q 'the-cat-concerto v9.9.9' "$TMP/h6/.codex/AGENTS.md"
+check "T9 user content survives upgrade" grep -q 'my codex config' "$TMP/h6/.codex/AGENTS.md"
+check "T9 still one block" test "$(grep -cF '# BEGIN the-cat-concerto' "$TMP/h6/.codex/AGENTS.md")" -eq 1
+
 echo
 echo "passed=$PASS failed=$FAIL"
 [[ $FAIL -eq 0 ]]
