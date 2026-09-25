@@ -80,6 +80,14 @@ check "T9 block upgraded" grep -q 'the-cat-concerto v9.9.9' "$TMP/h6/.codex/AGEN
 check "T9 user content survives upgrade" grep -q 'my codex config' "$TMP/h6/.codex/AGENTS.md"
 check "T9 still one block" test "$(grep -cF '# BEGIN the-cat-concerto' "$TMP/h6/.codex/AGENTS.md")" -eq 1
 
+# T10: version from git tag renders single-v marker (skipped without .git)
+CP2="$TMP/repo-tagged"; cp -R "$REPO" "$CP2"
+if git -C "$CP2" tag v9.9.9 2>/dev/null; then
+  "$CP2/install.sh" --harness opencode --prefix "$TMP/h10" >/dev/null 2>&1
+  check "T10 tag version single v" grep -q '^<!-- the-cat-concerto v9.9.9 -->$' "$TMP/h10/.config/opencode/agents/orchestrator.md"
+  check_false "T10 no double v marker" grep -q '^<!-- the-cat-concerto vv' "$TMP/h10/.config/opencode/agents/orchestrator.md"
+fi
+
 echo
 echo "passed=$PASS failed=$FAIL"
 [[ $FAIL -eq 0 ]]

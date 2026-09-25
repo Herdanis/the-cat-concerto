@@ -58,6 +58,7 @@ if V="$(git -C "$SRCDIR" describe --tags --exact-match 2>/dev/null)"; then
 else
   VERSION="$(tr -d '[:space:]' < "$SRCDIR/VERSION")"
 fi
+VERSION="${VERSION#v}"
 MARKER="the-cat-concerto v$VERSION"
 ROOT="${PREFIX:-$HOME}"
 
