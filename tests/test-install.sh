@@ -25,6 +25,7 @@ check "T1 opencode orchestrator agent" test -f "$TMP/h1/.config/opencode/agents/
 check "T1 opencode worker agent" test -f "$TMP/h1/.config/opencode/agents/concerto-worker.md"
 check "T1 vendored herdr skill" test -f "$TMP/h1/.config/opencode/skills/herdr/SKILL.md"
 check "T1 orchestrator frontmatter" grep -q '^name: orchestrator' "$TMP/h1/.config/opencode/agents/orchestrator.md"
+check "T1 frontmatter starts at line 1" test "$(head -n1 "$TMP/h1/.config/opencode/agents/orchestrator.md")" = "---"
 check "T1 version marker" grep -q '^<!-- the-cat-concerto v' "$TMP/h1/.config/opencode/agents/orchestrator.md"
 check "T1 manual skill not installed" test ! -f "$TMP/h1/.config/opencode/skills/herdr/SKILL.md.nonexistent"
 
@@ -37,6 +38,7 @@ check "T2 file unchanged" test "$S1" = "$S2"
 
 # T3: newer version replaces agent file
 CP="$TMP/repo-copy"; cp -R "$REPO" "$CP"
+rm -rf "$CP/.git"
 echo 9.9.9 > "$CP/VERSION"
 "$CP/install.sh" --harness opencode --prefix "$TMP/h1" >/dev/null 2>&1
 check "T3 newer version replaces" grep -q 'the-cat-concerto v9.9.9' "$TMP/h1/.config/opencode/agents/orchestrator.md"

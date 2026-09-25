@@ -77,10 +77,11 @@ fi
 # Install helpers
 # ============================================
 install_agent_file() { # <target> <rendered-temp>
-  local target="$1" rendered="$2"
+  local target="$1" rendered="$2" installed
   if [[ -f "$target" ]]; then
-    if [[ "$(head -n1 "$target")" =~ ^\<!--\ the-cat-concerto\ v ]]; then
-      if [[ "$(head -n1 "$target")" == "<!-- $MARKER -->" ]]; then
+    if installed="$(grep -m1 '^<!-- the-cat-concerto v' "$target")"; then
+      if [[ "$installed" == "<!-- $MARKER -->" ]]; then
+        rm -f "$rendered"
         echo "  already installed ($VERSION): $target"
       else
         mv "$rendered" "$target"
@@ -120,10 +121,12 @@ install_skill() { # <target>
 if [[ "$HARNESS" == opencode ]]; then
   BASE="$ROOT/.config/opencode"
   R1="$(mktemp)"; R2="$(mktemp)"
-  { printf '<!-- %s -->\n\n' "$MARKER"
-    cat "$SRCDIR/harness/opencode/agent-header.md" "$SRCDIR/src/orchestrator.md"; } > "$R1"
-  { printf '<!-- %s -->\n\n' "$MARKER"
-    cat "$SRCDIR/harness/opencode/worker-header.md" "$SRCDIR/src/worker.md"; } > "$R2"
+  { cat "$SRCDIR/harness/opencode/agent-header.md"
+    printf '\n<!-- %s -->\n\n' "$MARKER"
+    cat "$SRCDIR/src/orchestrator.md"; } > "$R1"
+  { cat "$SRCDIR/harness/opencode/worker-header.md"
+    printf '\n<!-- %s -->\n\n' "$MARKER"
+    cat "$SRCDIR/src/worker.md"; } > "$R2"
   install_agent_file "$BASE/agents/orchestrator.md" "$R1"
   install_agent_file "$BASE/agents/concerto-worker.md" "$R2"
   [[ "$HERDR_SKILL" == vendor ]] && install_skill "$BASE/skills/herdr/SKILL.md"
@@ -154,7 +157,8 @@ install_block() { # <file> <content-temp>
         index($0, begin) == 1 { print; while ((getline l < cf) > 0) print l; close(cf); inb = 1; next }
         index($0, end) == 1 && inb { inb = 0 }
         !inb { print }
-      ' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
+      ' "$file" > "$file.tmp" || { rm -f "$file.tmp"; echo "  error: block rewrite failed: $file" >&2; FAILED=1; return 1; }
+      mv "$file.tmp" "$file"
       echo "  updated block ($VERSION): $file"
     fi
     rm -f "$current"
