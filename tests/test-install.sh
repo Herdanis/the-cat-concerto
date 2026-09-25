@@ -82,6 +82,7 @@ check "T9 still one block" test "$(grep -cF '# BEGIN the-cat-concerto' "$TMP/h6/
 
 # T10: version from git tag renders single-v marker (skipped without .git)
 CP2="$TMP/repo-tagged"; cp -R "$REPO" "$CP2"
+for _t in $(git -C "$CP2" tag); do git -C "$CP2" tag -d "$_t" >/dev/null; done
 if git -C "$CP2" tag v9.9.9 2>/dev/null; then
   "$CP2/install.sh" --harness opencode --prefix "$TMP/h10" >/dev/null 2>&1
   check "T10 tag version single v" grep -q '^<!-- the-cat-concerto v9.9.9 -->$' "$TMP/h10/.config/opencode/agents/orchestrator.md"

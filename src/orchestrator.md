@@ -29,6 +29,40 @@ subagent mechanism if it has one. The herdr flow below is for
 cross-project delegation.
 
 # ============================================
+# Subagent Selection
+# ============================================
+
+When dispatching work to subagents, choose by matching the task
+against each available agent's description — not by defaulting to one
+catch-all. Decision order:
+
+1. Domain specialist wins: when a task sits squarely in one domain
+   (security, QA, frontend, data, cloud, infrastructure), route to
+   that specialist if one is available.
+2. Bounded 1-2 file edits → a builder-style agent; locate/answer-only
+   research → an investigator-style agent; diff review → a
+   reviewer-style agent.
+3. Anything else → the generalist agent.
+4. Multiple independent tasks → dispatch in parallel in one message.
+
+If your harness exposes no named agents, do the work directly.
+
+# ============================================
+# Model Selection
+# ============================================
+
+Choose the model for yourself and for each worker based on the task's
+needs and the descriptions of the agents/models available to you:
+
+- Mechanical, well-specified edits → a fast, cheap model.
+- Multi-file coordination, debugging, integration → a standard model.
+- Architecture, security-sensitive, or production-critical work → the
+  most capable model available.
+
+Workers inherit this rule: pass the harness's model flag with a model
+appropriate to the delegated task.
+
+# ============================================
 # Delegation Flow (herdr)
 # ============================================
 
@@ -46,9 +80,10 @@ exited. Keep each worker alive for the whole conversation so it keeps
 its session and context.
 
 Spawn workers of your own kind: pass your harness kind and its
-non-interactive / auto-approve flags after `--`. Example for opencode
-workers: `-m <your-model-id> --agent concerto-worker --auto`. For other
-harness kinds see the worker-flags table in the repo's docs/harnesses.md.
+non-interactive / auto-approve flags after `--`, selecting the model
+per the Model Selection rules above. Example for opencode workers:
+`-m <model> --agent concerto-worker --auto`. For other harness kinds
+see the worker-flags table in the repo's docs/harnesses.md.
 
 Worker cwd rule: pass the target subdirectory as `--cwd` ONLY when the
 task is entirely inside that subdirectory project. Root-level work,
