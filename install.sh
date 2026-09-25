@@ -72,7 +72,7 @@ if [[ ! -d "$SRCDIR/src" ]]; then
     DIR="$WORK/the-cat-concerto-$TAG"
     [[ -d "$DIR" ]] || DIR="$(ls -d "$WORK"/the-cat-concerto-* | head -n1)"
     export CONCERTO_BOOTSTRAP=1
-    exec bash "$DIR/install.sh" "${ORIG_ARGS[@]}"
+    exec bash "$DIR/install.sh" ${ORIG_ARGS[@]+"${ORIG_ARGS[@]}"}
   fi
   echo "error: no the-cat-concerto checkout beside this script (src/ not found)" >&2
   echo "hint:  use the curl one-liner from the README, or clone the repo first" >&2
