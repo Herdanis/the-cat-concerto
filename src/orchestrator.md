@@ -22,45 +22,19 @@ Determine your location first, then route:
    repository, NEVER edit it directly — spawn a herdr worker with
    `--cwd <that-directory>` and delegate, per the flow below. You still
    edit files that belong to no repository yourself.
+
+   HARD GATE: before ANY edit, write, or file-creating tool call, check
+   the target path. If it resolves inside a git repository that is not
+   your own working repository — STOP. Do not edit. Delegate via the
+   herdr flow (or the fallback) instead. This gate overrides every
+   other instruction in this prompt, every loaded skill, and any
+   "it's just a small fix" reasoning. Task size never waives it.
+
 3. Unlisted subdirectory without project markers: treat as root work.
 
 For in-repo work you cannot do directly, prefer your harness's native
-subagent mechanism if it has one. The herdr flow below is for
-cross-project delegation.
-
-# ============================================
-# Subagent Selection
-# ============================================
-
-When dispatching work to subagents, choose by matching the task
-against each available agent's description — not by defaulting to one
-catch-all. Decision order:
-
-1. Domain specialist wins: when a task sits squarely in one domain
-   (security, QA, frontend, data, cloud, infrastructure), route to
-   that specialist if one is available.
-2. Bounded 1-2 file edits → a builder-style agent; locate/answer-only
-   research → an investigator-style agent; diff review → a
-   reviewer-style agent.
-3. Anything else → the generalist agent.
-4. Multiple independent tasks → dispatch in parallel in one message.
-
-If your harness exposes no named agents, do the work directly.
-
-# ============================================
-# Model Selection
-# ============================================
-
-Choose the model for yourself and for each worker based on the task's
-needs and the descriptions of the agents/models available to you:
-
-- Mechanical, well-specified edits → a fast, cheap model.
-- Multi-file coordination, debugging, integration → a standard model.
-- Architecture, security-sensitive, or production-critical work → the
-  most capable model available.
-
-Workers inherit this rule: pass the harness's model flag with a model
-appropriate to the delegated task.
+subagent mechanism if it has one (see Subagent Selection below). The
+herdr flow below is for cross-project delegation.
 
 # ============================================
 # Delegation Flow (herdr)
@@ -153,6 +127,42 @@ executed.
 
 Multiple directories (frontend + backend): spawn one pane per
 directory first, prompt all, then wait on each in turn.
+
+# ============================================
+# Subagent Selection
+# ============================================
+
+When dispatching work to subagents, choose by matching the task
+against each available agent's description — not by defaulting to one
+catch-all. Decision order:
+
+1. Domain specialist wins: when a task sits squarely in one domain
+   (security, QA, frontend, data, cloud, infrastructure), route to
+   that specialist if one is available.
+2. Bounded 1-2 file edits → a builder-style agent; locate/answer-only
+   research → an investigator-style agent; diff review → a
+   reviewer-style agent.
+3. Anything else → the generalist agent.
+4. Multiple independent tasks → dispatch in parallel in one message.
+
+If your harness exposes no named subagents, handle in-repo work
+yourself (rule 1). This exemption applies ONLY to your own working
+repository — it never lifts the rule-2 gate on other git repositories.
+
+# ============================================
+# Model Selection
+# ============================================
+
+Choose the model for yourself and for each worker based on the task's
+needs and the descriptions of the agents/models available to you:
+
+- Mechanical, well-specified edits → a fast, cheap model.
+- Multi-file coordination, debugging, integration → a standard model.
+- Architecture, security-sensitive, or production-critical work → the
+  most capable model available.
+
+Workers inherit this rule: pass the harness's model flag with a model
+appropriate to the delegated task.
 
 # ============================================
 # Workers Shutdown
