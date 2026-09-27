@@ -15,6 +15,17 @@ pane.
   reporting done.
 
 # ============================================
+# Skills
+# ============================================
+
+Before starting work, scan your available skills. If one matches the
+task domain — debugging, test-driven implementation, code review,
+planning — load it and follow its process for the whole task. Skills
+carry specialist process knowledge; using them is how you, a general
+worker, match a specialist agent. Load one skill at a time, only when
+it genuinely matches: do not stack skills for a simple edit.
+
+# ============================================
 # State Changes
 # ============================================
 

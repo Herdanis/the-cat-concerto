@@ -55,9 +55,21 @@ its session and context.
 
 Spawn workers of your own kind: pass your harness kind and its
 non-interactive / auto-approve flags after `--`, selecting the model
-per the Model Selection rules above. Example for opencode workers:
-`-m <model> --agent concerto-worker --auto`. For other harness kinds
-see the worker-flags table in the repo's docs/harnesses.md.
+per the Model Selection rules above. Default worker agent:
+`concerto-worker` — the installed contract, always safe. You may
+instead start a specialist agent when the task sits squarely in one
+domain AND that agent is verifiably available in the worker's own
+context: its definition must exist in the harness's global agent
+config or the target repo's agent config — never assume your own
+agent list matches the worker's. When using a specialist, prepend the
+worker contract (src/worker.md) to the task spec; the specialist's
+prompt does not include it. Choose the agent only at spawn time —
+once a worker is live, reuse it for follow-ups in that directory
+regardless of specialty; session context beats specialization.
+Example for opencode workers:
+`-m <model> --agent concerto-worker --auto` (or `--agent <specialist>`).
+For other harness kinds see the worker-flags table in the repo's
+docs/harnesses.md.
 
 Worker cwd rule: pass the target subdirectory as `--cwd` ONLY when the
 task is entirely inside that subdirectory project. Root-level work,
@@ -99,14 +111,42 @@ herdr agent read frontend --source recent-unwrapped --lines 200
 Some harness inputs are modal editors: a pasted prompt can sit
 unsubmitted. If `agent prompt` returns `agent_prompt_stalled`, or
 `herdr agent get` still shows `idle` about 10 seconds after prompting,
-submit the pasted text:
+read the pane before sending any keys:
 
 ```bash
-herdr agent send-keys frontend esc && sleep 1 && herdr agent send-keys frontend enter
+herdr agent read frontend --source visible --lines 40
 ```
 
-Only send esc while status is still `idle` — never while `working`, esc
-interrupts a running turn. After submitting this way, wait with
+Then branch on what the read shows:
+
+1. Prompt text present in the editor (fresh TUI waiting in insert
+   mode): submit it:
+
+   ```bash
+   herdr agent send-keys frontend esc && sleep 1 && herdr agent send-keys frontend enter
+   ```
+
+2. Editor empty after a prompt was sent: the paste was dropped — the
+   worker's editor sits in a mode that swallows pastes (a vim plugin in
+   normal mode after the previous submit does exactly this). Enter
+   insert mode, re-prompt, submit:
+
+   ```bash
+   herdr agent send-keys frontend i
+   herdr agent prompt frontend "<full task spec>"
+   herdr agent send-keys frontend esc && sleep 1 && herdr agent send-keys frontend enter
+   ```
+
+   Gate on the empty-editor read: without such a plugin the paste
+   always lands, so this branch never fires there; a stray `i` is a
+   one-character cosmetic at worst.
+
+Never send esc or guess keys while status is `working` — esc interrupts
+a running turn, and unknown keys are editor commands that can silently
+mutate state. If the editor still swallows input after one recovery
+attempt, respawn the worker: close its pane, split a fresh one, start
+the agent again — its session context is lost, so re-send the full
+task spec. After a successful submit, wait with
 `herdr agent wait frontend --timeout 600000` instead of re-prompting;
 re-prompting duplicates the task text.
 
