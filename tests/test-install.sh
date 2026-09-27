@@ -122,6 +122,33 @@ check_false "T16 piped script exits nonzero on bad URL" test "$RC" -eq 0
 check "T16 piped script reaches bootstrap error" grep -q 'download failed' <<<"$OUT"
 check "T16 no unbound BASH_SOURCE error" grep -qv 'BASH_SOURCE' <<<"$OUT"
 
+# T17: vendored herdr skill carries a version marker
+check "T17 vendored skill marked" grep -q '^<!-- the-cat-concerto v' "$TMP/h1/.config/opencode/skills/herdr/SKILL.md"
+
+# T18: drifted vendored skill is updated in place on re-run
+echo "DRIFTMARK123" >> "$TMP/h1/.config/opencode/skills/herdr/SKILL.md"
+OUT=$("$REPO/install.sh" --harness opencode --prefix "$TMP/h1" --herdr-skill vendor 2>&1)
+check "T18 drifted skill updated" grep -q 'updated herdr skill' <<<"$OUT"
+check "T18 drift repaired" test -z "$(grep DRIFTMARK123 "$TMP/h1/.config/opencode/skills/herdr/SKILL.md")"
+
+# T19: version bump updates marked skill
+"$CP/install.sh" --harness opencode --prefix "$TMP/h1" --herdr-skill vendor >/dev/null 2>&1
+check "T19 skill upgraded marker" grep -q 'the-cat-concerto v9.9.9' "$TMP/h1/.config/opencode/skills/herdr/SKILL.md"
+
+# T20: herdr-managed (foreign) skill still refused, untouched
+mkdir -p "$TMP/h20/.config/opencode/skills/herdr"
+echo "herdr-managed skill" > "$TMP/h20/.config/opencode/skills/herdr/SKILL.md"
+OUT=$("$REPO/install.sh" --harness opencode --prefix "$TMP/h20" --herdr-skill vendor 2>&1)
+check "T20 foreign skill untouched" grep -q 'herdr-managed skill' "$TMP/h20/.config/opencode/skills/herdr/SKILL.md"
+check "T20 refusal message" grep -q 'keeping it' <<<"$OUT"
+
+# T21: legacy markerless identical skill adopted, not refused
+mkdir -p "$TMP/h21/.config/opencode/skills/herdr"
+cp "$REPO/vendor/herdr-skill/SKILL.md" "$TMP/h21/.config/opencode/skills/herdr/SKILL.md"
+OUT=$("$REPO/install.sh" --harness opencode --prefix "$TMP/h21" --herdr-skill vendor 2>&1)
+check "T21 legacy skill adopted" grep -q '^<!-- the-cat-concerto v' "$TMP/h21/.config/opencode/skills/herdr/SKILL.md"
+check "T21 no refusal" test -z "$(grep 'keeping it' <<<"$OUT")"
+
 echo
 echo "passed=$PASS failed=$FAIL"
 [[ $FAIL -eq 0 ]]

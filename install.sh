@@ -360,15 +360,26 @@ install_agent_file() { # <target> <rendered-temp>
 }
 
 install_skill() { # <target>
-  local target="$1" src="$SRCDIR/vendor/herdr-skill/SKILL.md"
-  if [[ -f "$target" ]] && cmp -s "$src" "$target"; then
-    echo "  herdr skill already vendored: $target"
-  elif [[ -f "$target" ]] && [[ "$FORCE" -eq 0 ]]; then
+  local target="$1" src="$SRCDIR/vendor/herdr-skill/SKILL.md" rendered
+  rendered="$(mktemp)"
+  { cat "$src"; printf '\n<!-- %s -->\n' "$MARKER"; } > "$rendered"
+  if [[ ! -f "$target" ]]; then
+    mkdir -p "$(dirname "$target")"
+    mv "$rendered" "$target"
+    echo "  vendored herdr skill: $target"
+  elif cmp -s "$rendered" "$target"; then
+    rm -f "$rendered"
+    echo "  herdr skill already vendored ($VERSION): $target"
+  elif grep -q '^<!-- the-cat-concerto v' "$target" || cmp -s "$src" "$target"; then
+    # ours (marked, or legacy markerless copy) — update in place
+    mv "$rendered" "$target"
+    echo "  updated herdr skill to $VERSION: $target"
+  elif [[ "$FORCE" -eq 0 ]]; then
+    rm -f "$rendered"
     echo "  herdr skill exists and differs (herdr-managed?) — keeping it (use --force to replace): $target" >&2
   else
-    mkdir -p "$(dirname "$target")"
-    cp "$src" "$target"
-    echo "  vendored herdr skill: $target"
+    mv "$rendered" "$target"
+    echo "  overwrote herdr skill (forced): $target"
   fi
 }
 

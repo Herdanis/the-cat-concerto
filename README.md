@@ -66,7 +66,9 @@ Supported harnesses: `opencode`, `claude` (Claude Code), `codex`,
 | gemini | marked block in `~/.gemini/GEMINI.md` | same block |
 
 Re-running the installer is safe: same version = no-op, newer version =
-in-place upgrade, foreign files are refused unless `--force`.
+in-place upgrade (vendored herdr skill included — it carries a concert
+marker and updates in place), foreign and herdr-managed files are
+refused unless `--force`.
 
 ## Uninstall
 
