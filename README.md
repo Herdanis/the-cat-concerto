@@ -52,6 +52,7 @@ Supported harnesses: `opencode`, `claude` (Claude Code), `codex`,
 |---|---|---|---|
 | `--harness` | opencode, claude, codex, gemini (comma-sep for multiple) | interactive prompt | target harness(es) |
 | `--herdr-skill` | manual, vendor | manual | manual: prints the `herdr integration install` command; vendor: installs the bundled snapshot |
+| `--source` | tag, commit, local | tag for curl installs, local for a checkout | where the prompts come from: latest git tag, latest main commit, or the checkout beside the script (testing) |
 | `--prefix DIR` | any dir | `$HOME` | install root (for testing) |
 | `--force` | — | off | overwrite files that lack concert markers |
 | `CONCERTO_NO_TUI=1` | env | — | numbered prompts instead of arrow-key TUI |

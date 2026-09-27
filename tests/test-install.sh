@@ -174,6 +174,19 @@ check "T24 both harnesses detected" grep -q 'updating existing install: opencode
 OUT=$(printf 'x\n' | CONCERTO_NO_TUI=1 CONCERTO_STDIN=1 "$REPO/install.sh" --prefix "$TMP/h25" 2>&1)
 check "T25 fresh prefix shows wizard" grep -q 'Select harness' <<<"$OUT"
 
+# T26: --source value validation
+OUT=$("$REPO/install.sh" --source bogus --harness opencode --prefix "$TMP/h26" 2>&1)
+check "T26 unknown --source rejected" grep -q 'must be tag, commit, or local' <<<"$OUT"
+
+# T27: --source local needs a checkout beside the script
+mkdir -p "$TMP/bs27"; cp "$REPO/install.sh" "$TMP/bs27/install.sh"
+OUT=$(cd "$TMP/bs27" && bash install.sh --source local --harness opencode --prefix "$TMP/h27" 2>&1)
+check "T27 local source without checkout fails" grep -q 'needs a the-cat-concerto checkout' <<<"$OUT"
+
+# T28: checkout with no --source stays local (no network attempted)
+OUT=$("$REPO/install.sh" --harness opencode --prefix "$TMP/h28" 2>&1)
+check "T28 default checkout install works offline" grep -q '==> opencode' <<<"$OUT"
+
 echo
 echo "passed=$PASS failed=$FAIL"
 [[ $FAIL -eq 0 ]]

@@ -15,6 +15,7 @@ HARNESS_MULTI=""
 HERDR_SKILL="manual"
 PREFIX=""
 FORCE=0
+SOURCE="auto"   # auto | tag | commit | local
 FAILED=0
 INTERACTIVE_USED=0
 BLOCK_BEGIN="# BEGIN the-cat-concerto"
@@ -33,6 +34,8 @@ Or the one-liner (no clone needed):
 Options:
   --harness X[,Y...]           one or more of: opencode claude codex gemini
   --herdr-skill manual|vendor  herdr skill source (default: manual)
+  --source tag|commit|local    files source: latest tag (default), latest
+                               main commit, or checkout beside script
   --prefix DIR                 install root (default: \$HOME)
   --force                      overwrite files lacking concert markers
   CONCERTO_NO_TUI=1            numbered prompts instead of arrow-key TUI
@@ -47,37 +50,114 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --harness)     HARNESS="${2:?missing value}" ; shift 2 ;;
     --herdr-skill) HERDR_SKILL="${2:?missing value}" ; shift 2 ;;
+    --source)      SOURCE="${2:?missing value}" ; shift 2 ;;
     --prefix)      PREFIX="${2:?missing value}" ; shift 2 ;;
     --force)       FORCE=1 ; shift ;;
     *)             usage ;;
   esac
 done
 
+case "$SOURCE" in
+  auto|tag|commit|local) ;;
+  *) echo "error: --source must be tag, commit, or local" >&2 ; exit 2 ;;
+esac
+
 # ============================================
-# Bootstrap: curl|bash — no checkout beside script
+# Source resolution
 # ============================================
-if [[ ! -d "$SRCDIR/src" ]]; then
-  if command -v curl >/dev/null 2>&1; then
-    TARBALL="${CONCERTO_TARBALL_OVERRIDE:-https://github.com/Herdanis/the-cat-concerto/archive/refs/heads/main.tar.gz}"
-    WORK="$(mktemp -d)"
-    if ! curl -sfL "$TARBALL" -o "$WORK/src.tar.gz"; then
-      echo "error: download failed: $TARBALL" >&2
-      exit 1
-    fi
-    tar -xzf "$WORK/src.tar.gz" -C "$WORK" || { echo "error: extract failed" >&2; exit 1; }
-    DIR="$WORK/the-cat-concerto-main"
-    [[ -d "$DIR" ]] || DIR="$(ls -d "$WORK"/the-cat-concerto-* | head -n1)"
-    exec bash "$DIR/install.sh" ${ORIG_ARGS[@]+"${ORIG_ARGS[@]}"}
+# Where the installed prompts come from:
+#   tag    → latest git tag tarball (default for a curl|bash install)
+#   commit → latest main-branch commit tarball
+#   local  → the checkout beside this script (testing)
+# Running the script from a real checkout with no --source stays local,
+# so the offline installer tests and prefix workflows never hit network.
+REPO_URL="https://github.com/Herdanis/the-cat-concerto"
+
+resolve_latest_tag() { # echoes the newest tag name
+  local t
+  if command -v git >/dev/null 2>&1; then
+    t="$(git ls-remote --refs --tags --sort=-v:refname "$REPO_URL" 2>/dev/null \
+         | awk -F/ 'NF {print $NF}' | head -n1)"
+    [[ -n "$t" ]] && { echo "$t"; return 0; }
   fi
-  echo "error: no the-cat-concerto checkout beside this script (src/ not found)" >&2
-  echo "hint:  use the curl one-liner from the README, or clone the repo first" >&2
-  exit 1
+  if command -v curl >/dev/null 2>&1; then
+    t="$(curl -fsSL -H 'Accept: application/vnd.github+json' \
+         "https://api.github.com/repos/Herdanis/the-cat-concerto/releases/latest" 2>/dev/null \
+         | sed -n 's/.*"tag_name"[: ]*"\([^"]*\)".*/\1/p' | head -n1)"
+    [[ -n "$t" ]] && { echo "$t"; return 0; }
+  fi
+  return 1
+}
+
+if [[ -d "$SRCDIR/src" ]]; then
+  case "$SOURCE" in
+    commit|tag) FETCH_MODE="$SOURCE" ;;
+    *)          FETCH_MODE="" ;;
+  esac
+else
+  case "$SOURCE" in
+    local)
+      echo "error: --source local needs a the-cat-concerto checkout beside this script (src/ not found)" >&2
+      exit 1
+      ;;
+    commit) FETCH_MODE="commit" ;;
+    *)      FETCH_MODE="tag" ;;
+  esac
+fi
+
+exec_from_tarball() { # <tarball-url> <expected-dir-name> <tag>
+  local fetch DIR i
+  fetch="$(mktemp -d)"
+  if ! curl -sfL "$1" -o "$fetch/src.tar.gz"; then
+    echo "error: download failed: $1" >&2
+    exit 1
+  fi
+  tar -xzf "$fetch/src.tar.gz" -C "$fetch" || { echo "error: extract failed" >&2; exit 1; }
+  DIR="$fetch/$2"
+  [[ -d "$DIR" ]] || DIR="$(ls -d "$fetch"/the-cat-concerto-* 2>/dev/null | head -n1)"
+  [[ -d "$DIR" ]] || { echo "error: unexpected tarball layout in $1" >&2; exit 1; }
+  # strip --source so the extracted copy runs against itself
+  ARGS=()
+  i=0
+  while (( i < ${#ORIG_ARGS[@]} )); do
+    if [[ "${ORIG_ARGS[$i]}" == "--source" ]]; then
+      i=$((i + 2))
+    else
+      ARGS+=("${ORIG_ARGS[$i]}")
+      i=$((i + 1))
+    fi
+  done
+  if [[ -n "${3:-}" ]]; then
+    CONCERTO_VERSION_TAG="$3" exec bash "$DIR/install.sh" ${ARGS[@]+"${ARGS[@]}"}
+  else
+    exec bash "$DIR/install.sh" ${ARGS[@]+"${ARGS[@]}"}
+  fi
+}
+
+if [[ -n "$FETCH_MODE" ]]; then
+  if [[ "$FETCH_MODE" == commit ]]; then
+    TARBALL="${CONCERTO_TARBALL_OVERRIDE:-$REPO_URL/archive/refs/heads/main.tar.gz}"
+    exec_from_tarball "$TARBALL" "the-cat-concerto-main" ""
+  elif [[ -n "${CONCERTO_TARBALL_OVERRIDE:-}" ]]; then
+    # escape hatch for offline tests: skip tag resolution entirely
+    exec_from_tarball "$CONCERTO_TARBALL_OVERRIDE" "the-cat-concerto-" ""
+  else
+    TAG="$(resolve_latest_tag)" || {
+      echo "error: cannot resolve latest tag (needs network) — use --source commit or --source local" >&2
+      exit 1
+    }
+    exec_from_tarball "$REPO_URL/archive/refs/tags/$TAG.tar.gz" "the-cat-concerto-$TAG" "$TAG"
+  fi
 fi
 
 # ============================================
 # Version
 # ============================================
-if V="$(git -C "$SRCDIR" describe --tags --exact-match 2>/dev/null)"; then
+# CONCERTO_VERSION_TAG: set by the bootstrap when the files came from a
+# resolved tag tarball (which has no .git for describe to read)
+if [[ -n "${CONCERTO_VERSION_TAG:-}" ]]; then
+  VERSION="$CONCERTO_VERSION_TAG"
+elif V="$(git -C "$SRCDIR" describe --tags --exact-match 2>/dev/null)"; then
   VERSION="$V"
 else
   VERSION="$(tr -d '[:space:]' < "$SRCDIR/VERSION")"
