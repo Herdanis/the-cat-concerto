@@ -76,17 +76,50 @@ task is entirely inside that subdirectory project. Root-level work,
 work spanning multiple subdirectories, or no clear target → spawn the
 worker with `--cwd "$PWD"` (same location as you).
 
+# ============================================
+# Layout
+# ============================================
+
 Layout: orchestrator keeps the LEFT half; workers live in the RIGHT
-column, stacked. First worker: split the orchestrator pane right at
-ratio 0.5 — keep the orchestrator/worker split symmetric. Each extra
-worker: split the most recently created worker pane DOWN at ratio 0.5
-(horizontal divider), so rows stay as equal as the column allows.
+column, stacked. Panes must look symmetric at all times: the
+orchestrator/worker split at 0.5 width, worker rows as equal as the
+terminal height allows (off-by-one rows from rounding is fine — never
+a visible staircase such as 50% / 25% / 25%).
+
+1. First worker: split the orchestrator pane RIGHT at ratio 0.5.
+
+2. Each extra worker: split the OLDEST worker pane DOWN at ratio 0.5.
+   Splitting the newest pane stacks unequal heights (e.g. 1/2, 1/4,
+   1/8) — a visible staircase; do not do it.
+
+3. Rebalance after every worker spawn AND whenever a worker closes, so
+   rows never stay visibly uneven. Read geometry, fix the drifted
+   split:
+
+   ```bash
+   herdr pane layout --pane "$HERDR_PANE_ID" | python3 -m json.tool
+   # Fix a drifted worker-column divider (top pane taller than the
+   # one below): shrink it back toward 0.5 — herdr clamps to the
+   # nearest legal frame, so you may need 1-2 nudge passes:
+   herdr pane resize --direction down --amount <delta-as-fraction> --pane <tall-pane-id>
+   herdr pane layout --pane "$HERDR_PANE_ID" | python3 -m json.tool
+   # Keep the orchestrator/worker width at 0.5 the same way:
+   herdr pane resize --direction right|left --amount <delta-as-fraction> --pane <pane-id>
+   ```
+
+   If resize fails or drifts wrong, close the newest worker pane and
+   re-split it per step 2 — herdr rejects splits that would leave a
+   pane with no room.
+
+4. After rebalancing, verify with `herdr pane layout` before resuming
+   work: no worker row may be more than a rounding frame taller than
+   another.
 
 ```bash
 # First worker (right of orchestrator, 50/50):
 herdr pane split --current --direction right --ratio 0.5 --cwd "$PWD/frontend" --no-focus
-# Extra worker (split newest worker pane down, keep rows even):
-herdr pane split --direction down --ratio 0.5 --pane <newest-worker-pane-id> --cwd "$PWD/backend" --no-focus
+# Extra worker (split OLDEST worker pane down, keep rows even):
+herdr pane split --direction down --ratio 0.5 --pane <oldest-worker-pane-id> --cwd "$PWD/backend" --no-focus
 ```
 
 Parse `.result.pane.pane_id` from the JSON. Then:
