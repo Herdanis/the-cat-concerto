@@ -102,6 +102,30 @@ fi
 # ============================================
 have_tty() { [[ -t 2 ]]; }
 
+detect_installed() { # echoes space-separated harnesses with concert markers
+  local h file
+  for h in $HARNESS_KINDS; do
+    case "$h" in
+      opencode) file="$ROOT/.config/opencode/agents/orchestrator.md" ;;
+      claude)   file="$ROOT/.claude/CLAUDE.md" ;;
+      codex)    file="$ROOT/.codex/AGENTS.md" ;;
+      gemini)   file="$ROOT/.gemini/GEMINI.md" ;;
+    esac
+    if [[ -f "$file" ]] && grep -q '^<!-- the-cat-concerto v' "$file"; then
+      printf '%s ' "$h"
+    fi
+  done
+}
+
+infer_herdr_skill() { # echoes vendor|manual from prior install evidence
+  local f="$ROOT/.config/opencode/skills/herdr/SKILL.md"
+  if [[ -f "$f" ]] && grep -q '^<!-- the-cat-concerto v' "$f"; then echo vendor; return; fi
+  for f in "$ROOT/.claude/CLAUDE.md" "$ROOT/.codex/AGENTS.md" "$ROOT/.gemini/GEMINI.md"; do
+    if [[ -f "$f" ]] && grep -q '^name: herdr' "$f"; then echo vendor; return; fi
+  done
+  echo manual
+}
+
 # Renders a selection screen. Sets SELECTED[] (names) and returns 0 on
 # confirm, 1 on backspace.
 # Globals used: SEL_TITLE SEL_ITEMS (array) SEL_MULTI (0/1) SEL_CURSOR SEL_MASK
@@ -280,8 +304,16 @@ choose_skill() {
   return 0
 }
 
+UPDATE_MODE=0
 if [[ -z "$HARNESS" ]]; then
-  if have_tty || [[ "${CONCERTO_NO_TUI:-}" == "1" ]]; then
+  DETECTED="$(detect_installed)"
+  if [[ -n "$DETECTED" ]]; then
+    UPDATE_MODE=1
+    HARNESS_MULTI="$DETECTED"
+    DETECTED="${DETECTED% }"
+    HERDR_SKILL="$(infer_herdr_skill)"
+    echo "updating existing install: ${DETECTED// /, } (pass --harness to add or change)"
+  elif have_tty || [[ "${CONCERTO_NO_TUI:-}" == "1" ]]; then
     INTERACTIVE_USED=1
     while true; do
       HARNESS_MULTI="$(choose_harnesses || true)"
@@ -324,7 +356,7 @@ case "$HERDR_SKILL" in
   *) echo "error: --herdr-skill must be manual or vendor" >&2; exit 2 ;;
 esac
 
-if [[ "$HERDR_SKILL" == manual && "${RUN_HERDR:-0}" -ne 1 ]]; then
+if [[ "$HERDR_SKILL" == manual && "${RUN_HERDR:-0}" -ne 1 && "$UPDATE_MODE" -eq 0 ]]; then
   for h in "${SELECTED_HARNESS[@]}"; do
     echo "herdr skill: install it yourself with: herdr integration install $h"
   done

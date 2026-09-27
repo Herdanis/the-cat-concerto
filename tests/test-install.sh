@@ -104,9 +104,9 @@ check "T12 invalid input re-prompted then accepted" test -f "$TMP/h12/.config/op
 OUT=$(printf '4\n1\n' | CONCERTO_NO_TUI=1 CONCERTO_STDIN=1 PATH="/usr/bin:/bin" "$REPO/install.sh" --prefix "$TMP/h13" 2>&1)
 check "T13 vendor skill inlined into gemini block" grep -q '^name: herdr' "$TMP/h13/.gemini/GEMINI.md"
 
-# T14: no tty, no flags, no CONCERTO_NO_TUI → usage exit 2
-check_false "T14 no-tty no-flags exits 2" sh -c 'cd "'"$REPO"'" && ./install.sh </dev/null >/dev/null 2>&1'
-OUT=$(cd "$REPO" && ./install.sh </dev/null 2>&1); RC=$?
+# T14: no tty, no flags, fresh prefix → usage exit 2
+check_false "T14 no-tty no-flags exits 2" sh -c 'cd "'"$REPO"'" && ./install.sh --prefix "'"$TMP/h14"'" </dev/null >/dev/null 2>&1'
+OUT=$(cd "$REPO" && ./install.sh --prefix "$TMP/h14" </dev/null 2>&1); RC=$?
 check "T14 usage shows curl example" grep -q 'curl -fsSL' <<<"$OUT"
 
 # T15: bootstrap (no src/ beside script) fails cleanly with unreachable tarball
@@ -148,6 +148,31 @@ cp "$REPO/vendor/herdr-skill/SKILL.md" "$TMP/h21/.config/opencode/skills/herdr/S
 OUT=$("$REPO/install.sh" --harness opencode --prefix "$TMP/h21" --herdr-skill vendor 2>&1)
 check "T21 legacy skill adopted" grep -q '^<!-- the-cat-concerto v' "$TMP/h21/.config/opencode/skills/herdr/SKILL.md"
 check "T21 no refusal" test -z "$(grep 'keeping it' <<<"$OUT")"
+
+# T22: no-flag re-run on installed prefix skips wizard, updates in place
+OUT=$(printf 'x\n' | CONCERTO_NO_TUI=1 CONCERTO_STDIN=1 "$REPO/install.sh" --prefix "$TMP/h1" 2>&1)
+check "T22 update mode detected" grep -q 'updating existing install: opencode' <<<"$OUT"
+check "T22 no harness prompt" test -z "$(grep 'Select harness' <<<"$OUT")"
+check "T22 no herdr prompt" test -z "$(grep '^herdr skill:$' <<<"$OUT")"
+check "T22 agents present" grep -q '^<!-- the-cat-concerto v' "$TMP/h1/.config/opencode/agents/orchestrator.md"
+check "T22 vendored skill not refused" test -z "$(grep 'keeping it' <<<"$OUT")"
+check "T22 claude not created" test ! -f "$TMP/h1/.claude/CLAUDE.md"
+
+# T23: block harness detected too, user content kept, manual nag suppressed
+OUT=$(printf 'x\n' | CONCERTO_NO_TUI=1 CONCERTO_STDIN=1 "$REPO/install.sh" --prefix "$TMP/h6" 2>&1)
+check "T23 codex update detected" grep -q 'updating existing install: codex' <<<"$OUT"
+check "T23 user content preserved" grep -q 'my codex config' "$TMP/h6/.codex/AGENTS.md"
+check "T23 single block" test "$(grep -cF '# BEGIN the-cat-concerto' "$TMP/h6/.codex/AGENTS.md")" -eq 1
+check "T23 manual nag suppressed" test -z "$(grep 'install it yourself' <<<"$OUT")"
+
+# T24: multi-harness detection lists all installed
+"$REPO/install.sh" --harness gemini --prefix "$TMP/h1" >/dev/null 2>&1
+OUT=$(printf 'x\n' | CONCERTO_NO_TUI=1 CONCERTO_STDIN=1 "$REPO/install.sh" --prefix "$TMP/h1" 2>&1)
+check "T24 both harnesses detected" grep -q 'updating existing install: opencode, gemini (pass --harness' <<<"$OUT"
+
+# T25: fresh prefix still gets the wizard
+OUT=$(printf 'x\n' | CONCERTO_NO_TUI=1 CONCERTO_STDIN=1 "$REPO/install.sh" --prefix "$TMP/h25" 2>&1)
+check "T25 fresh prefix shows wizard" grep -q 'Select harness' <<<"$OUT"
 
 echo
 echo "passed=$PASS failed=$FAIL"

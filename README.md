@@ -68,7 +68,9 @@ Supported harnesses: `opencode`, `claude` (Claude Code), `codex`,
 Re-running the installer is safe: same version = no-op, newer version =
 in-place upgrade (vendored herdr skill included — it carries a concert
 marker and updates in place), foreign and herdr-managed files are
-refused unless `--force`.
+refused unless `--force`. With no flags, an already-installed system
+skips the prompts entirely and just updates what's there (pass
+`--harness` to add or change harnesses).
 
 ## Uninstall
 
