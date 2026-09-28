@@ -27,3 +27,4 @@ jobs:
         uses: Herdanis/the-invisible-mouse/actions/release-notes@v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          release-type: latest
