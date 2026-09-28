@@ -1,0 +1,12 @@
+id = "the-cat-concerto"
+name = "The Cat Concerto"
+version = "0.1.6"
+min_herdr_version = "0.7.0"
+description = "Orchestrator prompt + worker contract for coding agents, driven by herdr"
+platforms = ["linux", "macos"]
+
+[[panes]]
+id = "installer"
+title = "Installer"
+placement = "split"
+command = ["bash", "install.sh"]

@@ -81,6 +81,19 @@ skips the prompts entirely and just updates what's there (pass
   `# BEGIN the-cat-concerto` line through the
   `# END the-cat-concerto` line, markers included
 
+## Herdr plugin
+
+Listed on [herdr.dev/plugins](https://herdr.dev/plugins). With herdr
+installed:
+
+```bash
+herdr plugin install Herdanis/the-cat-concerto
+herdr plugin pane open --plugin the-cat-concerto --entrypoint installer
+```
+
+The pane opens an interactive terminal running install.sh. The curl
+one-liner above remains the primary install path.
+
 ## License
 
 MIT — see [LICENSE](LICENSE). The bundled herdr skill snapshot is
