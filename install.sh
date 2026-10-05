@@ -458,9 +458,13 @@ install_agent_file() { # <target> <rendered-temp>
   local target="$1" rendered="$2" installed
   if [[ -f "$target" ]]; then
     if installed="$(grep -m1 '^<!-- the-cat-concerto v' "$target")"; then
-      if [[ "$installed" == "<!-- $MARKER -->" ]]; then
+      if [[ "$installed" == "<!-- $MARKER -->" ]] && cmp -s "$rendered" "$target"; then
         rm -f "$rendered"
         echo "  already installed ($VERSION): $target"
+      elif [[ "$installed" == "<!-- $MARKER -->" ]]; then
+        cat "$rendered" > "$target"
+        rm -f "$rendered"
+        echo "  updated to $VERSION content: $target"
       else
         cat "$rendered" > "$target"
         echo "  upgraded to $VERSION: $target"

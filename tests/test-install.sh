@@ -193,6 +193,17 @@ check "T29 block markers present" grep -qF '# BEGIN the-cat-concerto' "$TMP/h1/.
 check "T29 orchestrator body present" grep -q 'Routing' "$TMP/h1/.config/opencode/AGENTS.md"
 check "T29 re-run keeps single block" test "$(grep -cF '# BEGIN the-cat-concerto' "$TMP/h1/.config/opencode/AGENTS.md")" -eq 1
 
+# T30: same version + changed content updates agent file in place
+# (mutates src/ and restores via git — only run on a clean file)
+if [[ -z "$(git -C "$REPO" status --porcelain -- src/orchestrator.md)" ]]; then
+  sed -i.bak 's/Determine your location first, then route:/Determine your location first, then route!/' "$REPO/src/orchestrator.md"
+  OUT=$("$REPO/install.sh" --harness opencode --prefix "$TMP/h1" 2>&1)
+  git -C "$REPO" checkout -- src/orchestrator.md
+  rm -f "$REPO/src/orchestrator.md.bak"
+  check "T30 same-version content update" grep -q 'updated to .* content' <<<"$OUT"
+  check "T30 target got new content" grep -q 'then route!' "$TMP/h1/.config/opencode/agents/orchestrator.md"
+fi
+
 echo
 echo "passed=$PASS failed=$FAIL"
 [[ $FAIL -eq 0 ]]
