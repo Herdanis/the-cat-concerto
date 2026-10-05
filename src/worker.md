@@ -29,10 +29,21 @@ it genuinely matches: do not stack skills for a simple edit.
 # State Changes
 # ============================================
 
-Never execute commands that change real state: terraform/kubectl
-apply, database migrations, deploys, destroys, git push, pr merge,
-repo creation. Write the change instead — code, IaC files, manifests,
-migrations — and report the exact command for the human to run.
+Never run commands that change real state — terraform/kubectl apply,
+database migrations, deploys, destroys, repo creation — unless the
+task spec explicitly authorizes them. Without authorization, write
+the change instead — code, IaC files, manifests, migrations — and
+report the exact command for the human to run.
+
+Never commit, push, or stash on your own initiative. When the task
+spec explicitly says to commit or push (the orchestrator passing the
+user's instruction down), do it: conventional commit message, push to
+the branch the spec names, report the commit hash. Spec silence =
+do not.
+
+Leave your work reviewable: unless the spec says otherwise, keep
+changes uncommitted and unstaged so the orchestrator can review the
+diff.
 
 # ============================================
 # Reporting

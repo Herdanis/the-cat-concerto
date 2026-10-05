@@ -43,14 +43,14 @@ git clone --depth 1 --branch v0.1.1 https://github.com/Herdanis/the-cat-concerto
 ```
 
 Supported harnesses: `opencode`, `claude` (Claude Code), `codex`,
-`gemini` (Gemini CLI). Other herdr-supported agents: see
+`gemini`, `pi`, `omp`. Other herdr-supported agents: see
 [docs/harnesses.md](docs/harnesses.md).
 
 ## Options
 
 | Flag | Values | Default | Meaning |
 |---|---|---|---|
-| `--harness` | opencode, claude, codex, gemini (comma-sep for multiple) | interactive prompt | target harness(es) |
+| `--harness` | opencode, claude, codex, gemini, pi, omp (comma-sep for multiple) | interactive prompt | target harness(es) |
 | `--herdr-skill` | manual, vendor | manual | manual: prints the `herdr integration install` command; vendor: installs the bundled snapshot |
 | `--source` | tag, commit, local | tag for curl installs, local for a checkout | where the prompts come from: latest git tag, latest main commit, or the checkout beside the script (testing) |
 | `--prefix DIR` | any dir | `$HOME` | install root (for testing) |
@@ -61,10 +61,12 @@ Supported harnesses: `opencode`, `claude` (Claude Code), `codex`,
 
 | Harness | Orchestrator | Worker |
 |---|---|---|
-| opencode | `~/.config/opencode/agents/orchestrator.md` | `~/.config/opencode/agents/concerto-worker.md` |
+| opencode | `~/.config/opencode/agents/orchestrator.md` + marked block in `~/.config/opencode/AGENTS.md` | `~/.config/opencode/agents/concerto-worker.md` |
 | claude | marked block in `~/.claude/CLAUDE.md` | same block |
 | codex | marked block in `~/.codex/AGENTS.md` | same block |
 | gemini | marked block in `~/.gemini/GEMINI.md` | same block |
+| pi | marked block in `~/.pi/agent/AGENTS.md` | same block |
+| omp | marked block in `~/.omp/agent/AGENTS.md` | same block |
 
 Re-running the installer is safe: same version = no-op, newer version =
 in-place upgrade (vendored herdr skill included — it carries a concert
@@ -73,11 +75,22 @@ refused unless `--force`. With no flags, an already-installed system
 skips the prompts entirely and just updates what's there (pass
 `--harness` to add or change harnesses).
 
+## Commits and pushes
+
+Workers and the orchestrator never commit or push on their own
+initiative. When you explicitly ask the orchestrator to commit or
+push — for you, or for a delegated repo — it passes that
+authorization down to the worker through the task spec. No user
+instruction, no state change.
+
 ## Uninstall
 
 - opencode: delete `agents/orchestrator.md` and
-  `agents/concerto-worker.md` (and `skills/herdr/` if vendored)
-- claude/codex/gemini: delete everything from the
+  `agents/concerto-worker.md` (and `skills/herdr/` if vendored), and
+  the marked block in `~/.config/opencode/AGENTS.md` (from
+  `# BEGIN the-cat-concerto` through `# END the-cat-concerto`,
+  markers included)
+- claude/codex/gemini/pi/omp: delete everything from the
   `# BEGIN the-cat-concerto` line through the
   `# END the-cat-concerto` line, markers included
 

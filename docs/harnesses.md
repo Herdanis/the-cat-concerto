@@ -14,9 +14,12 @@ use the orchestrator with one of them:
 | Kind | Worker flags after `--` (examples) |
 |---|---|
 | opencode | `-m <model> --agent concerto-worker --auto` |
-| claude | `--permission-mode acceptEdits` |
+| claude | `--permission-mode acceptEdits --allowedTools "Bash(*)"` |
 | codex | `--full-auto` |
 | gemini | `--approval-mode auto` (see `gemini --help`) |
+
+claude workers need an allowlisted Bash tool or they stall on every
+command prompt.
 
 Auto-approve should cover file edits and commands; keep anything that
 mutates external state (apply/deploy/push) denied or manual — the

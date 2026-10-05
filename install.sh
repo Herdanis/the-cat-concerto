@@ -20,11 +20,11 @@ FAILED=0
 INTERACTIVE_USED=0
 BLOCK_BEGIN="# BEGIN the-cat-concerto"
 BLOCK_END="# END the-cat-concerto"
-HARNESS_KINDS="opencode claude codex gemini"
+HARNESS_KINDS="opencode claude codex gemini pi omp"
 
 usage() {
   cat >&2 <<EOF
-Usage: install.sh --harness <opencode|claude|codex|gemini> [options]
+Usage: install.sh --harness <opencode|claude|codex|gemini|pi|omp> [options]
        install.sh                 (interactive, no flags)
 
 Or the one-liner (no clone needed):
@@ -32,7 +32,7 @@ Or the one-liner (no clone needed):
   curl -fsSL https://raw.githubusercontent.com/Herdanis/the-cat-concerto/main/install.sh | bash
 
 Options:
-  --harness X[,Y...]           one or more of: opencode claude codex gemini
+  --harness X[,Y...]           one or more of: opencode claude codex gemini pi omp
   --herdr-skill manual|vendor  herdr skill source (default: manual)
   --source tag|commit|local    files source: latest tag (default), latest
                                main commit, or checkout beside script
@@ -108,6 +108,7 @@ fi
 exec_from_tarball() { # <tarball-url> <expected-dir-name> <tag>
   local fetch DIR i
   fetch="$(mktemp -d)"
+  trap 'rm -rf "$fetch"' EXIT
   if ! curl -sfL "$1" -o "$fetch/src.tar.gz"; then
     echo "error: download failed: $1" >&2
     exit 1
@@ -190,6 +191,8 @@ detect_installed() { # echoes space-separated harnesses with concert markers
       claude)   file="$ROOT/.claude/CLAUDE.md" ;;
       codex)    file="$ROOT/.codex/AGENTS.md" ;;
       gemini)   file="$ROOT/.gemini/GEMINI.md" ;;
+      pi)       file="$ROOT/.pi/agent/AGENTS.md" ;;
+      omp)      file="$ROOT/.omp/agent/AGENTS.md" ;;
     esac
     if [[ -f "$file" ]] && grep -q '^<!-- the-cat-concerto v' "$file"; then
       printf '%s ' "$h"
@@ -200,8 +203,14 @@ detect_installed() { # echoes space-separated harnesses with concert markers
 infer_herdr_skill() { # echoes vendor|manual from prior install evidence
   local f="$ROOT/.config/opencode/skills/herdr/SKILL.md"
   if [[ -f "$f" ]] && grep -q '^<!-- the-cat-concerto v' "$f"; then echo vendor; return; fi
-  for f in "$ROOT/.claude/CLAUDE.md" "$ROOT/.codex/AGENTS.md" "$ROOT/.gemini/GEMINI.md"; do
-    if [[ -f "$f" ]] && grep -q '^name: herdr' "$f"; then echo vendor; return; fi
+  for f in "$ROOT/.claude/CLAUDE.md" "$ROOT/.codex/AGENTS.md" "$ROOT/.gemini/GEMINI.md" \
+           "$ROOT/.pi/agent/AGENTS.md" "$ROOT/.omp/agent/AGENTS.md"; do
+    if [[ -f "$f" ]] && grep -q '^name: herdr' "$f"; then
+      if grep -q '^<!-- the-cat-concerto' "$f"; then
+        continue   # our own vendored inline skill, not herdr-managed
+      fi
+      echo vendor; return
+    fi
   done
   echo manual
 }
@@ -281,7 +290,7 @@ tui_select() { # sets SELECTED (array) — uses SEL_TITLE/SEL_ITEMS/SEL_MULTI
         SELECTED=()
         return 1 ;;
       enter)
-        if [[ "$SEL_MULTI" -eq 1 && "$SEL_MASK" == *"1"* || "$SEL_MULTI" -eq 0 && "$SEL_MASK" == *"1"* ]]; then
+        if [[ "$SEL_MASK" == *"1"* ]]; then
           break
         fi
         undraw_screen; render_screen
@@ -427,8 +436,8 @@ HARNESS_MULTI="${HARNESS_MULTI//,/ }"
 IFS=' ' read -ra _h <<< "$HARNESS_MULTI"
 for _x in "${_h[@]}"; do
   case "$_x" in
-    opencode|claude|codex|gemini) SELECTED_HARNESS+=("$_x") ;;
-    *) echo "error: unknown harness '$_x' (opencode|claude|codex|gemini)" >&2; exit 2 ;;
+    opencode|claude|codex|gemini|pi|omp) SELECTED_HARNESS+=("$_x") ;;
+    *) echo "error: unknown harness '$_x' (opencode|claude|codex|gemini|pi|omp)" >&2; exit 2 ;;
   esac
 done
 case "$HERDR_SKILL" in
@@ -436,7 +445,7 @@ case "$HERDR_SKILL" in
   *) echo "error: --herdr-skill must be manual or vendor" >&2; exit 2 ;;
 esac
 
-if [[ "$HERDR_SKILL" == manual && "${RUN_HERDR:-0}" -ne 1 && "$UPDATE_MODE" -eq 0 ]]; then
+if [[ "$HERDR_SKILL" == manual && "${RUN_HERDR:-0}" -ne 1 && "$UPDATE_MODE" -eq 0 && "$INTERACTIVE_USED" -eq 0 ]]; then
   for h in "${SELECTED_HARNESS[@]}"; do
     echo "herdr skill: install it yourself with: herdr integration install $h"
   done
@@ -453,11 +462,11 @@ install_agent_file() { # <target> <rendered-temp>
         rm -f "$rendered"
         echo "  already installed ($VERSION): $target"
       else
-        mv "$rendered" "$target"
+        cat "$rendered" > "$target"
         echo "  upgraded to $VERSION: $target"
       fi
     elif [[ "$FORCE" -eq 1 ]]; then
-      mv "$rendered" "$target"
+      cat "$rendered" > "$target"
       echo "  overwrote (forced): $target"
     else
       echo "  refusing: $target exists without a concert marker (use --force)" >&2
@@ -466,7 +475,7 @@ install_agent_file() { # <target> <rendered-temp>
     fi
   else
     mkdir -p "$(dirname "$target")"
-    mv "$rendered" "$target"
+    cat "$rendered" > "$target"
     echo "  installed: $target"
   fi
 }
@@ -477,20 +486,20 @@ install_skill() { # <target>
   { cat "$src"; printf '\n<!-- %s -->\n' "$MARKER"; } > "$rendered"
   if [[ ! -f "$target" ]]; then
     mkdir -p "$(dirname "$target")"
-    mv "$rendered" "$target"
+    cat "$rendered" > "$target"
     echo "  vendored herdr skill: $target"
   elif cmp -s "$rendered" "$target"; then
     rm -f "$rendered"
     echo "  herdr skill already vendored ($VERSION): $target"
   elif grep -q '^<!-- the-cat-concerto v' "$target" || cmp -s "$src" "$target"; then
     # ours (marked, or legacy markerless copy) — update in place
-    mv "$rendered" "$target"
+    cat "$rendered" > "$target"
     echo "  updated herdr skill to $VERSION: $target"
   elif [[ "$FORCE" -eq 0 ]]; then
     rm -f "$rendered"
     echo "  herdr skill exists and differs (herdr-managed?) — keeping it (use --force to replace): $target" >&2
   else
-    mv "$rendered" "$target"
+    cat "$rendered" > "$target"
     echo "  overwrote herdr skill (forced): $target"
   fi
 }
@@ -499,12 +508,16 @@ install_block() { # <file> <content-temp>
   local file="$1" content="$2"
   mkdir -p "$(dirname "$file")"
   if [[ ! -f "$file" ]]; then
-    { echo "$BLOCK_BEGIN"; cat "$content"; echo; echo "$BLOCK_END"; } > "$file"
+    { echo "$BLOCK_BEGIN"; cat "$content"; echo "$BLOCK_END"; } > "$file"
     echo "  installed (new file): $file"
     return 0
   fi
   if grep -qF "$BLOCK_BEGIN" "$file"; then
     local current; current="$(mktemp)"
+    if ! grep -qF "$BLOCK_END" "$file"; then
+      echo "  error: BEGIN marker present but END marker missing — fix the markers manually or use --force: $file" >&2
+      rm -f "$current" "$content"; FAILED=1; return 1
+    fi
     awk -v begin="$BLOCK_BEGIN" -v end="$BLOCK_END" '
       index($0, begin) == 1 { inb = 1; next }
       index($0, end) == 1 { inb = 0; exit }
@@ -518,12 +531,13 @@ install_block() { # <file> <content-temp>
         index($0, end) == 1 && inb { inb = 0 }
         !inb { print }
       ' "$file" > "$file.tmp" || { rm -f "$file.tmp" "$current"; echo "  error: block rewrite failed: $file" >&2; FAILED=1; return 1; }
-      mv "$file.tmp" "$file"
+      cat "$file.tmp" > "$file"
+      rm -f "$file.tmp"
       echo "  updated block ($VERSION): $file"
     fi
     rm -f "$current"
   else
-    { echo; echo "$BLOCK_BEGIN"; cat "$content"; echo; echo "$BLOCK_END"; } >> "$file"
+    { echo; echo "$BLOCK_BEGIN"; cat "$content"; echo "$BLOCK_END"; } >> "$file"
     echo "  appended block: $file"
   fi
 }
@@ -558,6 +572,16 @@ for H in "${SELECTED_HARNESS[@]}"; do
     install_agent_file "$BASE/agents/orchestrator.md" "$R1"
     install_agent_file "$BASE/agents/concerto-worker.md" "$R2"
     [[ "$HERDR_SKILL" == vendor ]] && install_skill "$BASE/skills/herdr/SKILL.md"
+
+    # native global rules: same block mechanics as other AGENTS.md harnesses
+    OBLOCK="$ROOT/.config/opencode/AGENTS.md"
+    OCONTENT="$(mktemp)"
+    {
+      printf '<!-- %s -->\n\n' "$MARKER"
+      cat "$SRCDIR/src/orchestrator.md"
+    } > "$OCONTENT"
+    install_block "$OBLOCK" "$OCONTENT"
+    rm -f "$OCONTENT"
   else
     case "$H" in
       claude) BLOCK_FILE="$ROOT/.claude/CLAUDE.md" ;;

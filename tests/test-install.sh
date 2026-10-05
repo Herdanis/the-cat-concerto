@@ -120,7 +120,7 @@ check "T15 friendly download error" grep -q 'download failed' <<<"$OUT"
 OUT=$(cd "$TMP" && CONCERTO_TARBALL_OVERRIDE="http://127.0.0.1:1/nope.tar.gz" bash -s < "$REPO/install.sh" 2>&1); RC=$?
 check_false "T16 piped script exits nonzero on bad URL" test "$RC" -eq 0
 check "T16 piped script reaches bootstrap error" grep -q 'download failed' <<<"$OUT"
-check "T16 no unbound BASH_SOURCE error" grep -qv 'BASH_SOURCE' <<<"$OUT"
+check "T16 no unbound BASH_SOURCE error" bash -c '! grep -q "BASH_SOURCE" <<< "$1"' _ "$OUT"
 
 # T17: vendored herdr skill carries a version marker
 check "T17 vendored skill marked" grep -q '^<!-- the-cat-concerto v' "$TMP/h1/.config/opencode/skills/herdr/SKILL.md"
@@ -186,6 +186,12 @@ check "T27 local source without checkout fails" grep -q 'needs a the-cat-concert
 # T28: checkout with no --source stays local (no network attempted)
 OUT=$("$REPO/install.sh" --harness opencode --prefix "$TMP/h28" 2>&1)
 check "T28 default checkout install works offline" grep -q '==> opencode' <<<"$OUT"
+
+# T29: opencode also installs native global-rules block
+check "T29 opencode AGENTS.md created" test -f "$TMP/h1/.config/opencode/AGENTS.md"
+check "T29 block markers present" grep -qF '# BEGIN the-cat-concerto' "$TMP/h1/.config/opencode/AGENTS.md"
+check "T29 orchestrator body present" grep -q 'Routing' "$TMP/h1/.config/opencode/AGENTS.md"
+check "T29 re-run keeps single block" test "$(grep -cF '# BEGIN the-cat-concerto' "$TMP/h1/.config/opencode/AGENTS.md")" -eq 1
 
 echo
 echo "passed=$PASS failed=$FAIL"
