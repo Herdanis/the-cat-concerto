@@ -25,8 +25,12 @@ One-liner — interactive, no clone needed:
 curl -fsSL https://raw.githubusercontent.com/Herdanis/the-cat-concerto/main/install.sh | bash
 ```
 
-Tracks the latest commit on `main`. To pin a release instead, replace
-`main` with a tag (e.g. `v0.1.3`).
+By default this installs the latest release tag. To install from the
+latest commit on `main` instead:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Herdanis/the-cat-concerto/main/install.sh | bash -s -- --source commit
+```
 
 You get two questions (arrow keys + space to select, enter to
 confirm, backspace to go back):
@@ -38,7 +42,7 @@ confirm, backspace to go back):
 Non-interactive (CI, scripts) — clone and pass flags:
 
 ```bash
-git clone --depth 1 --branch v0.1.1 https://github.com/Herdanis/the-cat-concerto /tmp/the-cat-concerto
+git clone --depth 1 https://github.com/Herdanis/the-cat-concerto /tmp/the-cat-concerto
 /tmp/the-cat-concerto/install.sh --harness <harness>
 ```
 
