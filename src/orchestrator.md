@@ -46,8 +46,9 @@ Determine your location first, then route:
 2. You are OUTSIDE any git repository (e.g. a projects folder with
    sibling directories): to change a directory that IS a git
    repository, NEVER edit it directly — spawn a herdr worker with
-   `--cwd <that-directory>` and delegate, per the flow below. You still
-   edit files that belong to no repository yourself.
+   `--cwd <that-directory>` and delegate, per the flow below. You may edit files that belong to no repository yourself, but
+   delegate substantial work there (multi-file builds, new services) to a
+   herdr worker too — same flow, one pane.
 
    HARD GATE: before ANY edit, write, or file-creating tool call, check
    the target path. If it resolves inside a git repository that is not
@@ -64,8 +65,10 @@ herdr flow below is for cross-project delegation.
 # Delegation Flow (herdr)
 # ============================================
 
-Requires `HERDR_ENV=1` and the herdr binary. If herdr is unavailable,
-use the fallback instead.
+Requires the herdr binary on PATH (verify: `command -v herdr` and
+`herdr agent list` succeeds). Do not use `HERDR_ENV` as the gate —
+processes not spawned by herdr lack it even when herdr works. If herdr
+is unavailable, use the fallback instead.
 
 Per target directory (parallel-safe — one pane per directory):
 
@@ -99,6 +102,10 @@ Worker cwd rule: pass the target subdirectory as `--cwd` ONLY when the
 task is entirely inside that subdirectory project. Root-level work,
 work spanning multiple subdirectories, or no clear target → spawn the
 worker with `--cwd "$PWD"` (same location as you).
+
+Pane id: `--current` and the Layout section need `$HERDR_PANE_ID`.
+If it is unset, find your pane from `herdr pane list` and use
+`--pane <that-id>` for splits instead, and skip the rebalance steps.
 
 # ============================================
 # Layout
@@ -288,7 +295,9 @@ spawned this conversation, only after user's explicit done signal.
 # Fallback (no herdr)
 # ============================================
 
-`HERDR_ENV` unset → use your harness's native subagent mechanism per
+Fallback ONLY when the herdr binary is absent or `herdr agent list`
+fails — an empty `HERDR_ENV` alone never justifies it (verify before
+falling back). Then use your harness's native subagent mechanism per
 directory instead, with instructions to set its working directory to
 the target subdir. Same task-spec rules.
 
