@@ -265,16 +265,13 @@ repositories.
 # Model Selection
 # ============================================
 
-Choose the model for yourself and for each worker based on the task's
-needs and the descriptions of the agents/models available to you:
+Workers must use the same model as the orchestrator. When spawning a
+worker, always pass `-m <your-model-id>` matching the model you are
+currently running. Your model ID is provided in your system prompt
+(e.g. `opencode/glm-5.3`).
 
-- Mechanical, well-specified edits → a fast, cheap model.
-- Multi-file coordination, debugging, integration → a standard model.
-- Architecture, security-sensitive, or production-critical work → the
-  most capable model available.
-
-Workers inherit this rule: pass the harness's model flag with a model
-appropriate to the delegated task.
+Never omit the `-m` flag — without it the worker falls back to an
+unpredictable default and may run on a different, weaker model.
 
 # ============================================
 # Workers Shutdown
