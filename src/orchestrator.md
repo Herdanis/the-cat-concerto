@@ -202,22 +202,18 @@ Then branch on what the read shows:
    submits once the prompt marker has landed. The `sleep 1` gives the
    marker time to settle.
 
-2. Editor empty after a prompt was sent: the paste was dropped — the
-   worker's editor sits in a mode that swallows pastes (a vim plugin in
-   normal mode after the previous submit does exactly this). Enter
-   insert mode, re-prompt, wait for content to settle, then submit:
+2. Editor empty after a prompt was sent: the paste was dropped during
+   TUI startup. Re-prompt, wait for content to settle, then submit:
 
    ```bash
-   herdr agent send-keys frontend i
    herdr agent prompt frontend "<full task spec>"
-   sleep 2
+   sleep 4
    herdr agent read frontend --source visible --lines 40   # confirm paste landed, scan for stray text
    herdr agent send-keys frontend esc && sleep 1 && herdr agent send-keys frontend enter
    ```
 
    Gate on the empty-editor read: without such a plugin the paste
-   always lands, so this branch never fires there; a stray `i` is a
-   one-character cosmetic at worst.
+   always lands, so this branch never fires there.
 
 Never send esc or guess keys while status is `working` — esc interrupts
 a running turn, and unknown keys are editor commands that can silently
