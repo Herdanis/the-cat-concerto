@@ -190,20 +190,28 @@ herdr agent read frontend --source visible --lines 40
 Then branch on what the read shows:
 
 1. Prompt text present in the editor (fresh TUI waiting in insert
-   mode): submit it:
+   mode): Probe contamination check — scan the visible buffer for stray
+   diagnostic text that may have slipped into the paste; if probe output
+   or unexpected text is present, do not submit; respawn instead. Submit:
 
    ```bash
    herdr agent send-keys frontend esc && sleep 1 && herdr agent send-keys frontend enter
    ```
 
+   esc exits paste mode (wiping any unsubmitted remainder); enter
+   submits once the prompt marker has landed. The `sleep 1` gives the
+   marker time to settle.
+
 2. Editor empty after a prompt was sent: the paste was dropped — the
    worker's editor sits in a mode that swallows pastes (a vim plugin in
    normal mode after the previous submit does exactly this). Enter
-   insert mode, re-prompt, submit:
+   insert mode, re-prompt, wait for content to settle, then submit:
 
    ```bash
    herdr agent send-keys frontend i
    herdr agent prompt frontend "<full task spec>"
+   sleep 2
+   herdr agent read frontend --source visible --lines 40   # confirm paste landed, scan for stray text
    herdr agent send-keys frontend esc && sleep 1 && herdr agent send-keys frontend enter
    ```
 
