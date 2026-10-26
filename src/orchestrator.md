@@ -73,12 +73,15 @@ is unavailable, use the fallback instead.
 Per target directory (parallel-safe — one pane per directory):
 
 Reuse first, spawn second. Before splitting, run `herdr agent list`:
-if an agent for this directory is still live (`idle`/`done`/`blocked`),
-reuse it — prompt it directly, never spawn a new pane or session for
-follow-up work in this conversation. Spawn a fresh pane only when no
-agent exists for that directory; respawn only if the previous worker
-exited. Keep each worker alive for the whole conversation so it keeps
-its session and context.
+if an agent for this directory is still live (`idle`/`done`/`blocked`)
+AND its `tab_id`/`workspace_id` match `$HERDR_TAB_ID` /
+`$HERDR_WORKSPACE_ID`, reuse it — prompt it directly, never spawn a new
+pane or session for follow-up work in this conversation. An agent with
+a matching cwd but a different tab is not reusable — prompting it
+leaves the user staring at an idle tab; spawn a fresh worker in your
+own tab instead. Spawn a fresh pane only when no reusable agent
+exists; respawn only if the previous worker exited. Keep each worker
+alive for the whole conversation so it keeps its session and context.
 
 Spawn workers of your own kind: pass your harness kind and its
 non-interactive / auto-approve flags after `--`, selecting the model
@@ -103,9 +106,14 @@ task is entirely inside that subdirectory project. Root-level work,
 work spanning multiple subdirectories, or no clear target → spawn the
 worker with `--cwd "$PWD"` (same location as you).
 
-Pane id: `--current` and the Layout section need `$HERDR_PANE_ID`.
-If it is unset, find your pane from `herdr pane list` and use
-`--pane <that-id>` for splits instead, and skip the rebalance steps.
+Pane id: target panes by id, never by focus. `--current` and
+`herdr pane current` resolve to whatever pane the user has focused —
+possibly another tab or workspace — so a split lands in the wrong tab.
+Always pass `--pane "$HERDR_PANE_ID"` (your own pane) and confirm the
+split's `.result.pane.tab_id` equals `$HERDR_TAB_ID` before prompting
+that worker; on mismatch, close the pane and report instead of using
+it. If `$HERDR_PANE_ID` is unset, stop and report it — never guess a
+pane from `herdr pane list`.
 
 # ============================================
 # Layout
@@ -146,11 +154,12 @@ a visible staircase such as 50% / 25% / 25%).
    work: no worker row may be more than a rounding frame taller than
    another.
 
-`$HERDR_PANE_ID` is herdr's env var for your own pane id.
+`$HERDR_PANE_ID` is herdr's env var for your own pane id. Never use
+`--current`: it splits the focused pane, not yours.
 
 ```bash
-# First worker (right of orchestrator, 50/50):
-herdr pane split --current --direction right --ratio 0.5 --cwd "$PWD/frontend" --no-focus
+# First worker (right of orchestrator, 50/50) — target your pane explicitly:
+herdr pane split --pane "$HERDR_PANE_ID" --direction right --ratio 0.5 --cwd "$PWD/frontend" --no-focus
 # Extra worker (split OLDEST worker pane down, keep rows even):
 herdr pane split --direction down --ratio 0.5 --pane <oldest-worker-pane-id> --cwd "$PWD/backend" --no-focus
 ```
