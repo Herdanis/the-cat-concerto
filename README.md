@@ -47,8 +47,9 @@ git clone --depth 1 https://github.com/Herdanis/the-cat-concerto /tmp/the-cat-co
 ```
 
 Supported harnesses: `opencode`, `claude` (Claude Code), `codex`,
-`gemini`, `pi`, `omp`. Other herdr-supported agents: see
-[docs/harnesses.md](docs/harnesses.md).
+`gemini`, `pi`, `omp`. Works with OpenCode V1 and V2 — worker spawn
+flags differ per version, see [docs/harnesses.md](docs/harnesses.md).
+Other herdr-supported agents: same doc.
 
 ## Options
 
