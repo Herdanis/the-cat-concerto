@@ -97,9 +97,12 @@ prompt does not include it. Choose the agent only at spawn time —
 once a worker is live, reuse it for follow-ups in that directory
 regardless of specialty; session context beats specialization.
 Example for opencode workers — pick by `opencode --version`:
-- V2: `mini -m <model> --agent concerto-worker` (or `--agent <specialist>`).
-  `mini` has no `--auto`; unattended auto-accept comes from
-  `session.permissions: "autoaccept"` in `~/.config/opencode/cli.json`.
+- V2: create the session over the API (`"agent":"concerto-worker"`,
+  model, location), then run the pane as
+  `opencode --auto --session "$SID" --prompt "$(cat <spec-file>)"`.
+  The full TUI has no `--agent` flag, so the agent must be set when the
+  session is created. `--auto` is safe because the agent's deny floor
+  is applied after allow/ask. See "OpenCode V2: API delegation" below.
 - V1: `-m <model> --agent concerto-worker --auto` (or `--agent <specialist>`).
 For other harness kinds see the worker-flags table in the repo's
 docs/harnesses.md.
@@ -174,13 +177,16 @@ herdr agent start frontend --kind <your-harness-kind> --pane <pane-id> -- <worke
 ```
 
 Workers must run with auto-approval enabled so they never stall on
-ask-prompts. State-changing actions (apply, deploy, migrate, destroy,
-commit, push, pr merge, repo create) are denied by default: the
-worker reports them instead. The user's explicit instruction is the
-only unlock — when the user asks you to commit, push, or apply, you
-may pass that authorization down through the task spec, naming the
-branch and what to run. Never pass down an authorization the user
-did not give you.
+ask-prompts. The installed `concerto-worker` agent hard-denies
+state-changing commands itself: push, reset --hard, terraform
+apply/destroy, kubectl apply/create/delete/scale, helm upgrade, docker
+stack deploy, gh repo create, gh pr merge, and DB migrations — plus the
+question and subagent tools. No authorization passed down through a
+task spec can unlock those: the worker writes the change and reports
+the exact command for the human to run. A user instruction may still
+authorize a local commit, which the task spec must name explicitly
+(conventional message; the worker reports the hash). Never pass down an
+authorization the user did not give you.
 
 Name agents after the directory (must match `[a-z][a-z0-9_-]{0,31}`).
 Then delegate, wait, read:
@@ -189,6 +195,99 @@ Then delegate, wait, read:
 herdr agent prompt frontend "<full task spec: goal, files, constraints, definition of done, test command>" --wait --timeout 600000
 herdr agent read frontend --source recent-unwrapped --lines 200
 ```
+
+# ============================================
+# OpenCode V2: API delegation
+# ============================================
+
+On OpenCode V2, drive the worker through the HTTP API instead of
+keystrokes. The full-screen TUI (`opencode`) takes the prompt as a
+launch argument (`--prompt`), so the spec arrives with no paste step
+at all — no esc/enter, no `agent_prompt_stalled`, no blocked-pane
+stall. The TUI has no `--agent` flag, so the session must be created
+over the API with `"agent":"concerto-worker"` and then attached with
+`--session "$SID"`. The pane is the human's view (and the source of
+herdr's `agent_status`); reading it is never required. A pane that
+dies no longer loses the worker, because the session keeps running on
+the shared background service (the default — not `--standalone`).
+
+Placeholders: `<dir>` the worker's directory/purpose (agent name and
+title); `<provider>`/`<model>` from your own model ID (e.g.
+`opencode/glm-5.3` → provider `opencode`, model `glm-5.3`);
+`<abs target path>` the worker cwd, absolute; `<name>` the herdr agent
+name; `<pane-id>` from the split's `.result.pane.pane_id`;
+`<spec>` a basename for the temp file holding the full task spec.
+
+1. Create the session — required, since the TUI cannot select the agent:
+
+```bash
+SID=$(opencode api post /api/session -d '{"agent":"concerto-worker","title":"<dir> worker","model":{"providerID":"<provider>","id":"<model>"},"location":{"directory":"<abs target path>"}}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["id"])')
+```
+
+2. Write the full task spec to a file — the pane takes it as an
+   argument, and long specs belong in a file, not on the command line:
+
+```bash
+SPEC="/tmp/<spec>.md"
+cat > "$SPEC" <<'SPEC_EOF'
+<full task spec: goal, files, constraints, definition of done, test command>
+SPEC_EOF
+```
+
+3. Spawn the pane, then start the worker with `--auto` (safe because
+   the agent's deny floor is applied after allow/ask):
+
+```bash
+herdr pane split --pane "$HERDR_PANE_ID" --direction right --ratio 0.5 --cwd "<abs target path>" --no-focus
+herdr agent start <name> --kind opencode --pane <pane-id> -- --auto --session "$SID" --prompt "$(cat "$SPEC")"
+```
+
+4. Wait for the turn to end (or poll `GET /api/session/$SID` for
+   outcome/busy):
+
+```bash
+opencode api post "/api/experimental/session/$SID/wait"
+```
+
+5. Read the result — messages and the diff:
+
+```bash
+opencode api get "/api/session/$SID/message" --param limit=30
+opencode api get "/api/session/$SID/diff"
+```
+
+6. Approvals should not appear under `--auto`; if one does, fetch and
+   reply:
+
+```bash
+opencode api get "/api/session/$SID/permission"
+opencode api post "/api/session/$SID/permission/<requestID>/reply" -d '{"decision":"reject"}'
+```
+
+The prompt arrives at launch as an argument, so there is no paste
+step. Follow-up turns go through `/prompt` with `delivery: "steer"`
+(inject mid-turn) or `"queue"` (wait for turn end); omit delivery for
+the plain next-turn case. Worker status comes from Session.Info
+(`GET /api/session/$SID`): outcome `succeeded`/`failed`/`interrupted`,
+`time.busy`/`time.idle`, cost, and tokens — report cost per worker
+when useful. Review the worker's diff yourself before reporting
+completion, same as the keystroke flow.
+
+Exception variant — `mini`: use `mini --session "$SID"` only when an
+outside party answers approvals (the API `/permission` reply), because
+`mini` has no `--auto` and ignores `cli.json` `session.permissions:
+"autoaccept"` in practice. The default recipe is the full TUI above.
+
+If any API call fails, fall back to the keystroke flow below for that
+worker — never mix both for one worker.
+
+# ============================================
+# Other harnesses (claude, codex, gemini, opencode V1)
+# ============================================
+
+An OpenCode V2 orchestrator skips this section — the API flow above
+covers it. What follows is the keystroke flow for the harnesses
+without the API protocol.
 
 Some harness inputs are modal editors: a pasted prompt can sit
 unsubmitted. If `agent prompt` returns `agent_prompt_stalled`, or
@@ -344,6 +443,8 @@ pane.
 - The task spec you receive is self-contained: goal, target files,
   constraints, definition of done, test command. If information is
   missing, state your assumption and continue — do not stall.
+- The question tool is denied to you: never stop to ask the user.
+  State the assumption in your report and keep working.
 - Work only inside the target directory you were given.
 - Run the spec's test command (or the repo's standard check) before
   reporting done.
@@ -364,16 +465,18 @@ it genuinely matches: do not stack skills for a simple edit.
 # ============================================
 
 Never run commands that change real state — terraform/kubectl apply,
-database migrations, deploys, destroys, repo creation — unless the
-task spec explicitly authorizes them. Without authorization, write
-the change instead — code, IaC files, manifests, migrations — and
-report the exact command for the human to run.
+database migrations, deploys, destroys, repo creation. Those are hard
+denied by this agent's own permissions, so no task spec can unlock
+them: write the change instead — code, IaC files, manifests,
+migrations — and report the exact command for the human to run.
 
-Never commit, push, or stash on your own initiative. When the task
-spec explicitly says to commit or push (the orchestrator passing the
-user's instruction down), do it: conventional commit message, push to
-the branch the spec names, report the commit hash. Spec silence =
-do not.
+Never commit, push, or stash on your own initiative. You cannot push
+at all: `git push*` is denied by this agent's permissions. A commit is
+allowed only when the task spec explicitly names it (the orchestrator
+passing the user's instruction down) — then use a conventional commit
+message and report the commit hash. Any push the user asked for is
+reported as the exact command for the human to run. Never stash. Spec
+silence = do not commit.
 
 Leave your work reviewable: unless the spec says otherwise, keep
 changes uncommitted and unstaged so the orchestrator can review the

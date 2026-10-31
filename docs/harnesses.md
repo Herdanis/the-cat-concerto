@@ -13,15 +13,23 @@ use the orchestrator with one of them:
 
 | Kind | Worker flags after `--` (examples) |
 |---|---|
-| opencode V2 | `mini -m <model> --agent concerto-worker` |
+| opencode V2 (default) | `--auto --session <id> --prompt "$(cat spec)"` (API-created session; TUI has no `--agent` flag) |
+| opencode V2 (mini) | `mini --session <id>` (approvals answered elsewhere via the API; mini has no `--auto`) |
+| opencode V2 (one-shot) | `run "<task>" --agent concerto-worker --auto` |
 | opencode V1 | `-m <model> --agent concerto-worker --auto` |
 | claude | `--permission-mode acceptEdits --allowedTools "Bash(*)"` |
 | codex | `--full-auto` |
 | gemini | `--approval-mode auto` (see `gemini --help`) |
 
-Pick the opencode recipe with `opencode --version`. V2 `mini` has no
-`--auto` flag; auto-accept comes from `session.permissions: "autoaccept"`
-in `~/.config/opencode/cli.json`. V1 keeps `--auto` on the main TUI.
+Pick the opencode recipe with `opencode --version`. The full-screen
+TUI (`opencode`) has `--auto`; `mini` does not, and
+`session.permissions: "autoaccept"` in `~/.config/opencode/cli.json`
+is a full-TUI setting that does not cover `mini` in practice. The
+installed `concerto-worker` agent carries its own deny floor (push,
+apply, deploy, migrate, repo create, plus the question/subagent
+tools), which makes either auto-accept path safe. `tabs.mode: auto`
+hides OpenCode's own tabs inside herdr by design. V1 keeps `--auto`
+on the main TUI.
 
 claude workers need an allowlisted Bash tool or they stall on every
 command prompt.

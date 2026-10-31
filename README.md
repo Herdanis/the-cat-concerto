@@ -66,7 +66,7 @@ Other herdr-supported agents: same doc.
 
 | Harness | Orchestrator | Worker |
 |---|---|---|
-| opencode | `~/.config/opencode/agents/orchestrator.md` + marked block in `~/.config/opencode/AGENTS.md` | `~/.config/opencode/agents/concerto-worker.md` |
+| opencode | `~/.config/opencode/agents/orchestrator.md` | `~/.config/opencode/agents/concerto-worker.md` |
 | claude | marked block in `~/.claude/CLAUDE.md` | same block |
 | codex | marked block in `~/.codex/AGENTS.md` | same block |
 | gemini | marked block in `~/.gemini/GEMINI.md` | same block |
@@ -80,21 +80,33 @@ refused unless `--force`. With no flags, an already-installed system
 skips the prompts entirely and just updates what's there (pass
 `--harness` to add or change harnesses).
 
+The opencode install writes agent files only — never
+`~/.config/opencode/AGENTS.md`, which OpenCode V2 injects into every
+session including workers. A block left there by an older version is
+stripped on the next run (the file is deleted only if nothing else
+remains).
+
 ## Commits and pushes
 
-Workers and the orchestrator never commit or push on their own
-initiative. When you explicitly ask the orchestrator to commit or
-push — for you, or for a delegated repo — it passes that
-authorization down to the worker through the task spec. No user
-instruction, no state change.
+The installed `concerto-worker` agent hard-denies the actions that
+change real state: push, reset --hard, terraform apply/destroy,
+kubectl apply/create/delete/scale, helm upgrade, docker stack deploy,
+gh repo create, gh pr merge, DB migrations — plus the question and
+subagent tools. No instruction unlocks those: the worker writes the
+change and reports the exact command for you to run.
+
+A local commit is the exception you can authorize: when you explicitly
+ask the orchestrator to commit — for you, or for a delegated repo — it
+passes it through the task spec, and the worker commits with a
+conventional message and reports the hash. No user instruction, no
+state change.
 
 ## Uninstall
 
 - opencode: delete `agents/orchestrator.md` and
-  `agents/concerto-worker.md` (and `skills/herdr/` if vendored), and
-  the marked block in `~/.config/opencode/AGENTS.md` (from
-  `# BEGIN the-cat-concerto` through `# END the-cat-concerto`,
-  markers included)
+  `agents/concerto-worker.md` (and `skills/herdr/` if vendored). Nothing
+  of ours lives in `~/.config/opencode/AGENTS.md`; a legacy block there
+  is removed by the installer on the next run
 - claude/codex/gemini/pi/omp: delete everything from the
   `# BEGIN the-cat-concerto` line through the
   `# END the-cat-concerto` line, markers included

@@ -187,11 +187,24 @@ check "T27 local source without checkout fails" grep -q 'needs a the-cat-concert
 OUT=$("$REPO/install.sh" --harness opencode --prefix "$TMP/h28" 2>&1)
 check "T28 default checkout install works offline" grep -q '==> opencode' <<<"$OUT"
 
-# T29: opencode also installs native global-rules block
-check "T29 opencode AGENTS.md created" test -f "$TMP/h1/.config/opencode/AGENTS.md"
-check "T29 block markers present" grep -qF '# BEGIN the-cat-concerto' "$TMP/h1/.config/opencode/AGENTS.md"
-check "T29 orchestrator body present" grep -q 'Routing' "$TMP/h1/.config/opencode/AGENTS.md"
-check "T29 re-run keeps single block" test "$(grep -cF '# BEGIN the-cat-concerto' "$TMP/h1/.config/opencode/AGENTS.md")" -eq 1
+# T29: opencode leaves global AGENTS.md alone (V2 injects it into workers)
+check "T29 opencode does not create AGENTS.md" test ! -f "$TMP/h1/.config/opencode/AGENTS.md"
+mkdir -p "$TMP/h29/.config/opencode"
+{
+  printf 'my own rules\n\n'
+  printf '# BEGIN the-cat-concerto\nstale orchestrator body\n# END the-cat-concerto\n\n'
+  printf 'tail rules\n'
+} > "$TMP/h29/.config/opencode/AGENTS.md"
+"$REPO/install.sh" --harness opencode --prefix "$TMP/h29" >/dev/null 2>&1
+RC29=$?
+check "T29 stale block cleanup exits 0" test "$RC29" -eq 0
+check "T29 user content before block survives" grep -q 'my own rules' "$TMP/h29/.config/opencode/AGENTS.md"
+check "T29 user content after block survives" grep -q 'tail rules' "$TMP/h29/.config/opencode/AGENTS.md"
+check_false "T29 concert block gone" grep -qF '# BEGIN the-cat-concerto' "$TMP/h29/.config/opencode/AGENTS.md"
+mkdir -p "$TMP/h29b/.config/opencode"
+printf '# BEGIN the-cat-concerto\nstale\n# END the-cat-concerto\n' > "$TMP/h29b/.config/opencode/AGENTS.md"
+"$REPO/install.sh" --harness opencode --prefix "$TMP/h29b" >/dev/null 2>&1
+check "T29 block-only AGENTS.md deleted" test ! -f "$TMP/h29b/.config/opencode/AGENTS.md"
 
 # T30: same version + changed content updates agent file in place
 # (mutates src/ and restores via git — only run on a clean file)

@@ -546,6 +546,31 @@ install_block() { # <file> <content-temp>
   fi
 }
 
+remove_block() { # <file> — strips our marked block, keeps everything else
+  local file="$1"
+  [[ -f "$file" ]] || return 0
+  if ! grep -qF "$BLOCK_BEGIN" "$file"; then
+    return 0
+  fi
+  if ! grep -qF "$BLOCK_END" "$file"; then
+    echo "  warn: BEGIN marker without END in $file — leaving it untouched" >&2
+    return 0
+  fi
+  awk -v begin="$BLOCK_BEGIN" -v end="$BLOCK_END" '
+    index($0, begin) == 1 { inb = 1; next }
+    index($0, end) == 1 && inb { inb = 0; next }
+    !inb { print }
+  ' "$file" > "$file.tmp"
+  if [[ -z "$(tr -d '[:space:]' < "$file.tmp")" ]]; then
+    rm -f "$file.tmp" "$file"
+    echo "  removed stale block, file was block-only (deleted): $file"
+  else
+    cat "$file.tmp" > "$file"
+    rm -f "$file.tmp"
+    echo "  removed stale block: $file"
+  fi
+}
+
 # ============================================
 # Per-harness install
 # ============================================
@@ -577,15 +602,9 @@ for H in "${SELECTED_HARNESS[@]}"; do
     install_agent_file "$BASE/agents/concerto-worker.md" "$R2"
     [[ "$HERDR_SKILL" == vendor ]] && install_skill "$BASE/skills/herdr/SKILL.md"
 
-    # native global rules: same block mechanics as other AGENTS.md harnesses
-    OBLOCK="$ROOT/.config/opencode/AGENTS.md"
-    OCONTENT="$(mktemp)"
-    {
-      printf '<!-- %s -->\n\n' "$MARKER"
-      cat "$SRCDIR/src/orchestrator.md"
-    } > "$OCONTENT"
-    install_block "$OBLOCK" "$OCONTENT"
-    rm -f "$OCONTENT"
+    # V2 loads global AGENTS.md into every session, workers included —
+    # the orchestrator body must not live there. Strip a stale block.
+    remove_block "$ROOT/.config/opencode/AGENTS.md"
   else
     case "$H" in
       claude) BLOCK_FILE="$ROOT/.claude/CLAUDE.md" ;;
