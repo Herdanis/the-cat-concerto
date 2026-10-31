@@ -96,8 +96,10 @@ worker contract (src/worker.md) to the task spec; the specialist's
 prompt does not include it. Choose the agent only at spawn time —
 once a worker is live, reuse it for follow-ups in that directory
 regardless of specialty; session context beats specialization.
-Example for opencode workers:
-`-m <model> --agent concerto-worker --auto` (or `--agent <specialist>`).
+Example for opencode V2 workers:
+`mini -m <model> --agent concerto-worker` (or `--agent <specialist>`).
+`mini` has no `--auto`; unattended workers get auto-accept from
+`session.permissions: "autoaccept"` in `~/.config/opencode/cli.json`.
 For other harness kinds see the worker-flags table in the repo's
 docs/harnesses.md.
 

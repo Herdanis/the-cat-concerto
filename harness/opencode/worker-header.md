@@ -1,5 +1,4 @@
 ---
-name: concerto-worker
 mode: primary
 description: >
   Worker executing delegated tasks inside a herdr pane. Follows the

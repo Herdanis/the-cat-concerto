@@ -24,7 +24,7 @@ check_false() {
 check "T1 opencode orchestrator agent" test -f "$TMP/h1/.config/opencode/agents/orchestrator.md"
 check "T1 opencode worker agent" test -f "$TMP/h1/.config/opencode/agents/concerto-worker.md"
 check "T1 vendored herdr skill" test -f "$TMP/h1/.config/opencode/skills/herdr/SKILL.md"
-check "T1 orchestrator frontmatter" grep -q '^name: orchestrator' "$TMP/h1/.config/opencode/agents/orchestrator.md"
+check "T1 orchestrator frontmatter" grep -q '^mode: primary' "$TMP/h1/.config/opencode/agents/orchestrator.md"
 check "T1 frontmatter starts at line 1" test "$(head -n1 "$TMP/h1/.config/opencode/agents/orchestrator.md")" = "---"
 check "T1 version marker" grep -q '^<!-- the-cat-concerto v' "$TMP/h1/.config/opencode/agents/orchestrator.md"
 check "T1 manual skill not installed" test ! -f "$TMP/h1/.config/opencode/skills/herdr/SKILL.md.nonexistent"

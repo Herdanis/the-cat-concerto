@@ -1,5 +1,4 @@
 ---
-name: orchestrator
 mode: primary
 description: >
   Orchestrator that routes work by location. Inside a git repo: edits

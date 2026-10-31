@@ -13,10 +13,13 @@ use the orchestrator with one of them:
 
 | Kind | Worker flags after `--` (examples) |
 |---|---|
-| opencode | `-m <model> --agent concerto-worker --auto` |
+| opencode (V2) | `mini -m <model> --agent concerto-worker` |
 | claude | `--permission-mode acceptEdits --allowedTools "Bash(*)"` |
 | codex | `--full-auto` |
 | gemini | `--approval-mode auto` (see `gemini --help`) |
+
+opencode `mini` has no `--auto` flag; auto-accept comes from
+`session.permissions: "autoaccept"` in `~/.config/opencode/cli.json`.
 
 claude workers need an allowlisted Bash tool or they stall on every
 command prompt.
