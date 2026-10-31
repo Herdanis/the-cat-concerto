@@ -21,14 +21,12 @@ use the orchestrator with one of them:
 | gemini | `--approval-mode auto` (see `gemini --help`) |
 
 Pick the opencode recipe with `opencode --version`. The full-screen
-TUI (`opencode`) has `--auto`. `mini` is not used for workers — it has
-no `--auto`, and it ignores `session.permissions: "autoaccept"` in
-`~/.config/opencode/cli.json` in practice. Auto-accept is safe because
-the installed `concerto-worker` agent carries its own deny floor (push,
+TUI (`opencode`) has `--auto`. Auto-accept is safe because the
+installed `concerto-worker` agent carries its own deny floor (push,
 apply, deploy, migrate, repo create, plus the question/subagent
-tools), which is applied after allow/ask. `tabs.mode: auto` hides
-OpenCode's own tabs inside herdr by design. V1 keeps `--auto` on the
-main TUI.
+tools), which is applied after allow/ask, so auto-accept cannot reach
+those actions. `tabs.mode: auto` hides OpenCode's own tabs inside
+herdr by design. V1 keeps `--auto` on the main TUI.
 
 claude workers need an allowlisted Bash tool or they stall on every
 command prompt.

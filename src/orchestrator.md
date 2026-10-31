@@ -273,12 +273,9 @@ the plain next-turn case. Worker status comes from Session.Info
 when useful. Review the worker's diff yourself before reporting
 completion, same as the keystroke flow.
 
-Never use `opencode mini` for a worker. It has no `--auto` and it
-ignores `cli.json` `session.permissions: "autoaccept"` in practice, so
-it stalls on the first ask prompt. If session creation fails, launch
-the plain TUI in the pane (`opencode --auto`) and use the keystroke
-flow below; if that also fails, report instead of degrading to mini.
-Never mix both flows for one worker.
+If the API session-create call fails, launch the regular TUI in the
+pane (`opencode --auto`) and use the keystroke flow below. Never mix
+both flows for one worker.
 
 # ============================================
 # Other harnesses (claude, codex, gemini, opencode V1)
