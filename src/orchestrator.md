@@ -380,13 +380,23 @@ repositories.
 # Model Selection
 # ============================================
 
-Workers must use the same model as the orchestrator. When spawning a
-worker, always pass `-m <your-model-id>` matching the model you are
-currently running. Your model ID is provided in your system prompt
-(e.g. `opencode/glm-5.3`).
+Workers must use the same model as the orchestrator. Your model ID is
+in your system prompt (e.g. `modelnyaw/glm-5.3` → provider
+`modelnyaw`, model `glm-5.3`).
 
-Never omit the `-m` flag — without it the worker falls back to an
-unpredictable default and may run on a different, weaker model.
+OpenCode V2 (the default recipe): the model is pinned when the session
+is created — `POST /api/session` with
+`"model":{"providerID":"<provider>","id":"<model>"}` — not by a CLI
+flag. The full TUI has no `-m`, and the agent must be set in that same
+call. If your session-create call omits the model, stop and fix the
+call before spawning the worker.
+
+Any harness CLI that does accept `-m` (opencode `mini`/`run`, claude,
+codex, gemini): always pass `-m <your-model-id>` explicitly.
+
+Never spawn a worker that inherits an unpredictable default model: use
+whichever mechanism the harness supports — the session-create `model`
+field, the `-m` flag, or the agent's frontmatter `model:`.
 
 # ============================================
 # Workers Shutdown
