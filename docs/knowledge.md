@@ -12,8 +12,7 @@
 - **Paste/esc recovery is not for opencode**: the `esc && enter` submit dance in the orchestrator applies only to modal-editor harnesses (claude, codex, gemini, opencode V1). A V2 orchestrator prompts and reads through the HTTP API and never sends keys.
 - **`--prompt` submits at launch on the TUI**: the full-screen `opencode` takes the spec as a launch argument, so there is no paste step at all — no `esc`/`enter`, no `agent_prompt_stalled`.
 - **The TUI has no `--agent` flag**: the session must be created with the agent via the API (`POST /api/session` with `"agent":"concerto-worker"`), then attached with `--session "$SID"`.
-- **`--auto` lives on the TUI and `run` only**: it does not exist on `mini`. It is safe because agent deny rules outrank auto-approval (denies are checked after allow/ask).
-- **`mini` ignores cli.json `session.permissions: "autoaccept"`** in practice — a pending ask prompt stalls a `mini` worker. Use `mini --session <id>` only when an outside party answers approvals via the API.
+- **`--auto` lives on the TUI and `run` only**: `mini` is never used for workers — it has no `--auto` and ignores cli.json `session.permissions: "autoaccept"` in practice, so a pending ask prompt stalls it. Safe because agent deny rules outrank auto-approval (denies checked after allow/ask).
 - **No orchestrator body in `~/.config/opencode/AGENTS.md`**: V2 injects the global AGENTS.md into every session, workers included — an installed concert block puts the orchestrator persona into worker panes and duplicates the agent system prompt. The installer now only strips a stale block from that file.
 
 ## macOS test.py symlink false-negative

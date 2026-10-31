@@ -273,13 +273,12 @@ the plain next-turn case. Worker status comes from Session.Info
 when useful. Review the worker's diff yourself before reporting
 completion, same as the keystroke flow.
 
-Exception variant — `mini`: use `mini --session "$SID"` only when an
-outside party answers approvals (the API `/permission` reply), because
-`mini` has no `--auto` and ignores `cli.json` `session.permissions:
-"autoaccept"` in practice. The default recipe is the full TUI above.
-
-If any API call fails, fall back to the keystroke flow below for that
-worker — never mix both for one worker.
+Never use `opencode mini` for a worker. It has no `--auto` and it
+ignores `cli.json` `session.permissions: "autoaccept"` in practice, so
+it stalls on the first ask prompt. If session creation fails, launch
+the plain TUI in the pane (`opencode --auto`) and use the keystroke
+flow below; if that also fails, report instead of degrading to mini.
+Never mix both flows for one worker.
 
 # ============================================
 # Other harnesses (claude, codex, gemini, opencode V1)
@@ -391,7 +390,7 @@ flag. The full TUI has no `-m`, and the agent must be set in that same
 call. If your session-create call omits the model, stop and fix the
 call before spawning the worker.
 
-Any harness CLI that does accept `-m` (opencode `mini`/`run`, claude,
+Any harness CLI that does accept `-m` (opencode `run`, claude,
 codex, gemini): always pass `-m <your-model-id>` explicitly.
 
 Never spawn a worker that inherits an unpredictable default model: use
