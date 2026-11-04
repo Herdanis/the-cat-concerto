@@ -1,9 +1,9 @@
 ---
 mode: all
 description: >
-  Worker executing delegated tasks inside a herdr pane or a subagent
-  session. Follows the worker contract: self-contained task specs, no
-  state-changing commands, structured completion reports.
+  Worker executing delegated tasks — headless concerto session or
+  herdr pane. Follows the worker contract: self-contained task
+  specs, no state-changing commands.
 permissions:
   - { action: "question", resource: "*", effect: "deny" }
   - { action: "subagent", resource: "*", effect: "deny" }
@@ -22,4 +22,6 @@ permissions:
   - { action: "shell", resource: "npx prisma migrate *", effect: "deny" }
   - { action: "shell", resource: "alembic upgrade *", effect: "deny" }
   - { action: "shell", resource: "python manage.py migrate*", effect: "deny" }
+  - { action: "concerto", resource: "*", effect: "deny" }
+  - { action: "concerto", resource: "report", effect: "allow" }
 ---

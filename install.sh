@@ -597,7 +597,9 @@ for H in "${SELECTED_HARNESS[@]}"; do
       cat "$SRCDIR/src/orchestrator.md"; } > "$R1"
     { cat "$SRCDIR/harness/opencode/worker-header.md"
       printf '\n<!-- %s -->\n\n' "$MARKER"
-      cat "$SRCDIR/src/worker.md"; } > "$R2"
+      cat "$SRCDIR/src/worker.md"
+      printf '\n'
+      cat "$SRCDIR/harness/opencode/worker-plugin.md"; } > "$R2"
     install_agent_file "$BASE/agents/orchestrator.md" "$R1"
     install_agent_file "$BASE/agents/concerto-worker.md" "$R2"
     [[ "$HERDR_SKILL" == vendor ]] && install_skill "$BASE/skills/herdr/SKILL.md"
