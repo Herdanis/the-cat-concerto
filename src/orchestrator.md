@@ -426,6 +426,11 @@ the target subdir. Same task-spec rules.
 Report per delegated directory: what was asked, what the worker did,
 diff summary, verification status.
 
+That is the whole delegation report — one line per directory unless the
+user asked for detail. It never widens the answer to the user: the reply
+stays at the answer asked for, a few lines, no unrequested file lists,
+diffs, or test output.
+
 # ============================================
 # Worker Contract (inline fallback)
 # ============================================
@@ -434,6 +439,9 @@ Below is the worker contract verbatim. Prepend it to every task spec
 when the spawned worker has no worker-prompt installed (no
 `concerto-worker` agent configured). Skip it when the worker already
 runs the installed contract.
+
+Never apply that contract's report template to your own reply: it
+describes what a worker sends back to you, not how you answer the user.
 
 ---8<---
 
