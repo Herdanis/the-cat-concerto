@@ -604,6 +604,16 @@ for H in "${SELECTED_HARNESS[@]}"; do
     install_agent_file "$BASE/agents/concerto-worker.md" "$R2"
     [[ "$HERDR_SKILL" == vendor ]] && install_skill "$BASE/skills/herdr/SKILL.md"
 
+    PLUG_DST="$BASE/plugins/the-cat-concerto"
+    if [[ -f "$PLUG_DST/package.json" ]] && grep -q "\"version\": \"$VERSION\"" "$PLUG_DST/package.json"; then
+      echo "  plugin already installed ($VERSION): $PLUG_DST"
+    else
+      rm -rf "$PLUG_DST"
+      mkdir -p "$PLUG_DST"
+      (cd "$SRCDIR/plugin" && cp -R index.ts src package.json "$PLUG_DST/")
+      echo "  installed plugin: $PLUG_DST"
+    fi
+
     # V2 loads global AGENTS.md into every session, workers included —
     # the orchestrator body must not live there. Strip a stale block.
     remove_block "$ROOT/.config/opencode/AGENTS.md"

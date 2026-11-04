@@ -51,6 +51,16 @@ Supported harnesses: `opencode`, `claude` (Claude Code), `codex`,
 flags differ per version, see [docs/harnesses.md](docs/harnesses.md).
 Other herdr-supported agents: same doc.
 
+On OpenCode V2 the install also ships the concerto plugin
+(`concerto_spawn`/`send`/`report`/`collect` tools). The orchestrator
+spawns workers as silent headless sessions instead of herdr panes:
+no pane, no paste, no polling — the plugin wakes the orchestrator
+when a worker finishes, and every cross-session message carries a
+`[concerto:...]` provenance prefix. Watch any worker live with
+`opencode --session <id>`. If the plugin is missing (older OpenCode,
+or your setup doesn't auto-discover the plugins directory), the
+orchestrator falls back to the herdr pane flow automatically.
+
 ## Options
 
 | Flag | Values | Default | Meaning |
@@ -66,7 +76,7 @@ Other herdr-supported agents: same doc.
 
 | Harness | Orchestrator | Worker |
 |---|---|---|
-| opencode | `~/.config/opencode/agents/orchestrator.md` | `~/.config/opencode/agents/concerto-worker.md` |
+| opencode | `~/.config/opencode/agents/orchestrator.md` | `~/.config/opencode/agents/concerto-worker.md` + plugin at `~/.config/opencode/plugins/the-cat-concerto/` (V2) |
 | claude | marked block in `~/.claude/CLAUDE.md` | same block |
 | codex | marked block in `~/.codex/AGENTS.md` | same block |
 | gemini | marked block in `~/.gemini/GEMINI.md` | same block |
@@ -86,6 +96,15 @@ session including workers. A block left there by an older version is
 stripped on the next run (the file is deleted only if nothing else
 remains).
 
+Plugin discovery assumption: OpenCode V2 auto-discovers
+`~/.config/opencode/plugins/<dir>/`. After installing, verify with
+`opencode plugin list` — `the-cat-concerto` should be listed. If it
+is not, register it explicitly (never hand-edit `opencode.jsonc`):
+
+```bash
+opencode plugin add ~/.config/opencode/plugins/the-cat-concerto
+```
+
 ## Commits and pushes
 
 The installed `concerto-worker` agent hard-denies the actions that
@@ -104,7 +123,8 @@ state change.
 ## Uninstall
 
 - opencode: delete `agents/orchestrator.md` and
-  `agents/concerto-worker.md` (and `skills/herdr/` if vendored). Nothing
+  `agents/concerto-worker.md` (and `skills/herdr/` if vendored, and
+  `plugins/the-cat-concerto/`). Nothing
   of ours lives in `~/.config/opencode/AGENTS.md`; a legacy block there
   is removed by the installer on the next run
 - claude/codex/gemini/pi/omp: delete everything from the

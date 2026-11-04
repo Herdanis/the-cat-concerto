@@ -217,6 +217,26 @@ if [[ -z "$(git -C "$REPO" status --porcelain -- src/orchestrator.md)" ]]; then
   check "T30 target got new content" grep -q 'then route!' "$TMP/h1/.config/opencode/agents/orchestrator.md"
 fi
 
+# T31: concerto plugin shipped with opencode install
+check "T31 plugin dir installed" test -f "$TMP/h1/.config/opencode/plugins/the-cat-concerto/index.ts"
+check "T31 plugin lib installed" test -f "$TMP/h1/.config/opencode/plugins/the-cat-concerto/src/lib.ts"
+check "T31 plugin package installed" test -f "$TMP/h1/.config/opencode/plugins/the-cat-concerto/package.json"
+check "T31 plugin ships no dev artifacts" test ! -d "$TMP/h1/.config/opencode/plugins/the-cat-concerto/node_modules"
+OUT=$("$REPO/install.sh" --harness opencode --prefix "$TMP/h1" 2>&1)
+check "T31 plugin re-run is a no-op" grep -q 'plugin already installed' <<<"$OUT"
+
+# T32: worker agent carries concerto control-tool denies
+check "T32 worker denies concerto tools" grep -qF 'action: "concerto", resource: "*", effect: "deny"' "$TMP/h1/.config/opencode/agents/concerto-worker.md"
+check "T32 worker allows report" grep -qF 'action: "concerto", resource: "report", effect: "allow"' "$TMP/h1/.config/opencode/agents/concerto-worker.md"
+
+# T33: worker agent carries headless section
+check "T33 worker has no-final-report rule" grep -q 'No final report' "$TMP/h1/.config/opencode/agents/concerto-worker.md"
+
+# T34: orchestrator prompt has plugin flow + legacy fallback
+check "T34 orchestrator has headless workers section" grep -q 'Headless Workers' "$TMP/h1/.config/opencode/agents/orchestrator.md"
+check "T34 orchestrator detects concerto_spawn" grep -q 'concerto_spawn' "$TMP/h1/.config/opencode/agents/orchestrator.md"
+check "T34 herdr fallback intact" grep -q 'Delegation Flow (herdr)' "$TMP/h1/.config/opencode/agents/orchestrator.md"
+
 echo
 echo "passed=$PASS failed=$FAIL"
 [[ $FAIL -eq 0 ]]
