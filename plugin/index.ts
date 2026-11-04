@@ -1,13 +1,16 @@
 import { Plugin } from "@opencode/plugin"
 import {
   WORKER_AGENT,
+  nudgeText,
   orchestratorPrefix,
+  shouldNudge,
   workerDenyRules,
   workerPrefix,
   workerTag,
+  type Outcome,
 } from "./src/lib"
 
-const PROVENANCE = (sid: string, role: "orchestrator" | "worker") => ({
+const PROVENANCE = (sid: string, role: string) => ({
   concerto: { from: sid, role, sid },
 })
 
@@ -46,6 +49,13 @@ const lastAssistantText = (messages: Array<{ type: string; content?: unknown }>)
   }
   return ""
 }
+
+const workerName = (info: { metadata?: { concerto?: unknown } }): string =>
+  typeof info.metadata?.concerto === "object" &&
+  info.metadata.concerto !== null &&
+  typeof (info.metadata.concerto as { name?: unknown }).name === "string"
+    ? (info.metadata.concerto as { name: string }).name
+    : "worker"
 
 export default Plugin.define({
   id: "the-cat-concerto",
@@ -135,15 +145,9 @@ export default Plugin.define({
           if (!own.parentID) {
             return { content: "concerto_report: session has no parent orchestrator" }
           }
-          const name =
-            typeof own.metadata?.concerto === "object" &&
-            own.metadata.concerto !== null &&
-            typeof (own.metadata.concerto as { name?: unknown }).name === "string"
-              ? (own.metadata.concerto as { name: string }).name
-              : "worker"
           await ctx.session.prompt({
             sessionID: own.parentID,
-            text: `${workerPrefix(name, context.sessionID)}\n${input.text}`,
+            text: `${workerPrefix(workerName(own), context.sessionID)}\n${input.text}`,
             delivery: "queue",
             metadata: PROVENANCE(context.sessionID, "worker"),
           })
@@ -174,5 +178,30 @@ export default Plugin.define({
         },
       })
     })
+
+    // Event wake: one prompt per finished concerto worker in this location;
+    // queue delivery survives a busy orchestrator turn (Review Focus 1).
+    const controller = new AbortController()
+    void (async () => {
+      for await (const event of ctx.event.subscribe({
+        types: ["session.execution.succeeded", "session.execution.failed", "session.execution.interrupted"],
+        signal: controller.signal,
+      })) {
+        try {
+          const info = await ctx.session.get({ sessionID: event.data.sessionID })
+          if (!shouldNudge(info, ctx.location.directory)) continue
+          const outcome = event.type.replace("session.execution.", "") as Outcome
+          await ctx.session.prompt({
+            sessionID: info.parentID!,
+            text: nudgeText(workerName(info), info.id, outcome),
+            delivery: "queue",
+            metadata: PROVENANCE(info.id, "event"),
+          })
+        } catch {
+          // A bad event must not kill the wake loop.
+        }
+      }
+    })()
+    return () => controller.abort()
   },
 })
