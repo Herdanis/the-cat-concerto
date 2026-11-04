@@ -97,12 +97,12 @@ prompt does not include it. Choose the agent only at spawn time —
 once a worker is live, reuse it for follow-ups in that directory
 regardless of specialty; session context beats specialization.
 Example for opencode workers — pick by `opencode --version`:
-- V2: create the session over the API (`"agent":"concerto-worker"`,
-  model, location), then run the pane as
+- V2 with the concerto plugin (default from v0.3): spawn headless
+  workers — see "OpenCode V2: Headless Workers" below. No pane, no
+  session-create call.
+- V2 without the plugin: create the session over the API
+  (`"agent":"concerto-worker"`, model, location), then run the pane as
   `opencode --auto --session "$SID" --prompt "$(cat <spec-file>)"`.
-  The full TUI has no `--agent` flag, so the agent must be set when the
-  session is created. `--auto` is safe because the agent's deny floor
-  is applied after allow/ask. See "OpenCode V2: API delegation" below.
 - V1: `-m <model> --agent concerto-worker --auto` (or `--agent <specialist>`).
 For other harness kinds see the worker-flags table in the repo's
 docs/harnesses.md.
@@ -197,93 +197,58 @@ herdr agent read frontend --source recent-unwrapped --lines 200
 ```
 
 # ============================================
-# OpenCode V2: API delegation
+# OpenCode V2: Headless Workers
 # ============================================
 
-On OpenCode V2, drive the worker through the HTTP API instead of
-keystrokes. The full-screen TUI (`opencode`) takes the prompt as a
-launch argument (`--prompt`), so the spec arrives with no paste step
-at all — no esc/enter, no `agent_prompt_stalled`, no blocked-pane
-stall. The TUI has no `--agent` flag, so the session must be created
-over the API with `"agent":"concerto-worker"` and then attached with
-`--session "$SID"`. The pane is the human's view (and the source of
-herdr's `agent_status`); reading it is never required. A pane that
-dies no longer loses the worker, because the session keeps running on
-the shared background service (the default — not `--standalone`).
+Detection: if the `concerto_spawn` tool is in your catalog, the
+concerto plugin is installed — use this flow for every opencode V2
+delegation. Otherwise use the herdr pane flow above and the
+keystroke flow below (V1 and other harnesses unchanged).
 
-Placeholders: `<dir>` the worker's directory/purpose (agent name and
-title); `<provider>`/`<model>` from your own model ID (e.g.
-`opencode/glm-5.3` → provider `opencode`, model `glm-5.3`);
-`<abs target path>` the worker cwd, absolute; `<name>` the herdr agent
-name; `<pane-id>` from the split's `.result.pane.pane_id`;
-`<spec>` a basename for the temp file holding the full task spec.
+Spawn: foreign repository or large delegated work →
+`concerto_spawn(directory, spec)`. The spec is the full task spec:
+goal, target files, constraints, definition of done, test command —
+self-contained, same rules as the pane flow. The tool returns the
+worker's session ID, name, and attach command. Report those to the
+user (`opencode --session <sid>` to watch live), then YIELD THE
+TURN — no polling, no waiting, no busy checks. The plugin wakes you
+when the worker finishes or reports.
 
-1. Create the session — required, since the TUI cannot select the agent:
+Wake handling: a prompt prefixed `[concerto:event ...]` (execution
+event) or `[concerto:worker ...]` (blocker report) wakes you. Then
+`concerto_collect(<sid>)` for outcome, cost, and the worker's last
+text; review the actual diff yourself — `git diff` / `git status` in
+the worker's directory, read-only commands only, and run the spec's
+test command yourself if the outcome is unclear. Report one line per
+worker. HARD GATE unchanged: never edit the foreign repo yourself
+even while reviewing — the worker is the only editor.
 
-```bash
-SID=$(opencode api post /api/session -d '{"agent":"concerto-worker","title":"<dir> worker","model":{"providerID":"<provider>","id":"<model>"},"location":{"directory":"<abs target path>"}}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["id"])')
-```
+Retry cap: on failure, at most ONE steer-retry
+(`concerto_send(sid, correction)`) or ONE respawn
+(`concerto_spawn` with a revised spec) per worker. After that,
+report the blocker to the user and stop. No unattended retry loops.
 
-2. Write the full task spec to a file — the pane takes it as an
-   argument, and long specs belong in a file, not on the command line:
+Steering: `concerto_send(sid, text)` — delivery `steer` for
+mid-turn correction, `queue` otherwise. Your steering messages
+arrive prefixed `[concerto:orchestrator]`; that prefix is the only
+steering channel the worker obeys.
 
-```bash
-SPEC="/tmp/<spec>.md"
-cat > "$SPEC" <<'SPEC_EOF'
-<full task spec: goal, files, constraints, definition of done, test command>
-SPEC_EOF
-```
+Expectation: workers send no final report. Judge the diff and the
+test results, not prose. Mid-task reports are blockers or decision
+needs only — read, decide, steer or acknowledge.
 
-3. Spawn the pane, then start the worker with `--auto` (safe because
-   the agent's deny floor is applied after allow/ask):
-
-```bash
-herdr pane split --pane "$HERDR_PANE_ID" --direction right --ratio 0.5 --cwd "<abs target path>" --no-focus
-herdr agent start <name> --kind opencode --pane <pane-id> -- --auto --session "$SID" --prompt "$(cat "$SPEC")"
-```
-
-4. Wait for the turn to end (or poll `GET /api/session/$SID` for
-   outcome/busy):
-
-```bash
-opencode api post "/api/experimental/session/$SID/wait"
-```
-
-5. Read the result — messages and the diff:
-
-```bash
-opencode api get "/api/session/$SID/message" --param limit=30
-opencode api get "/api/session/$SID/diff"
-```
-
-6. Approvals should not appear under `--auto`; if one does, fetch and
-   reply:
-
-```bash
-opencode api get "/api/session/$SID/permission"
-opencode api post "/api/session/$SID/permission/<requestID>/reply" -d '{"decision":"reject"}'
-```
-
-The prompt arrives at launch as an argument, so there is no paste
-step. Follow-up turns go through `/prompt` with `delivery: "steer"`
-(inject mid-turn) or `"queue"` (wait for turn end); omit delivery for
-the plain next-turn case. Worker status comes from Session.Info
-(`GET /api/session/$SID`): outcome `succeeded`/`failed`/`interrupted`,
-`time.busy`/`time.idle`, cost, and tokens — report cost per worker
-when useful. Review the worker's diff yourself before reporting
-completion, same as the keystroke flow.
-
-If the API session-create call fails, launch the regular TUI in the
-pane (`opencode --auto`) and use the keystroke flow below. Never mix
-both flows for one worker.
+Cleanup: deleting your own session cascades to every worker you
+spawned. Until then workers stay inspectable; the user can also
+delete them individually (`opencode session delete <sid>`).
 
 # ============================================
 # Other harnesses (claude, codex, gemini, opencode V1)
 # ============================================
 
-An OpenCode V2 orchestrator skips this section — the API flow above
-covers it. What follows is the keystroke flow for the harnesses
-without the API protocol.
+An OpenCode V2 orchestrator with the concerto plugin skips this
+section — the headless flow above covers it. What follows is the
+keystroke flow for the harnesses without the API protocol, and for
+V2 installs where the plugin is missing.
 
 Some harness inputs are modal editors: a pasted prompt can sit
 unsubmitted. If `agent prompt` returns `agent_prompt_stalled`, or
@@ -380,10 +345,11 @@ Workers must use the same model as the orchestrator. Your model ID is
 in your system prompt (e.g. `modelnyaw/glm-5.3` → provider
 `modelnyaw`, model `glm-5.3`).
 
-OpenCode V2 (the default recipe): the model is pinned when the session
-is created — `POST /api/session` with
-`"model":{"providerID":"<provider>","id":"<model>"}` — not by a CLI
-flag. The full TUI has no `-m`, and the agent must be set in that same
+OpenCode V2 with the concerto plugin: `concerto_spawn` pins each
+worker to your own model — nothing to pass. The legacy V2 recipe
+pins the model at session create — `POST /api/session` with
+`"model":{"providerID":"<provider>","id":"<model>"}` — because the
+full TUI has no `-m` flag and the agent must be set in that same
 call. If your session-create call omits the model, stop and fix the
 call before spawning the worker.
 

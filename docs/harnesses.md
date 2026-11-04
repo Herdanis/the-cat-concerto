@@ -13,14 +13,17 @@ use the orchestrator with one of them:
 
 | Kind | Worker flags after `--` (examples) |
 |---|---|
-| opencode V2 (default) | `--auto --session <id> --prompt "$(cat spec)"` (API-created session; TUI has no `--agent` flag) |
+| opencode V2 + concerto plugin | headless: `concerto_spawn(directory, spec)` — no pane, no flags (default from v0.3) |
+| opencode V2 (legacy pane) | `--auto --session <id> --prompt "$(cat spec)"` (API-created session; TUI has no `--agent` flag) |
 | opencode V2 (one-shot) | `run "<task>" --agent concerto-worker --auto` |
 | opencode V1 | `-m <model> --agent concerto-worker --auto` |
 | claude | `--permission-mode acceptEdits --allowedTools "Bash(*)"` |
 | codex | `--full-auto` |
 | gemini | `--approval-mode auto` (see `gemini --help`) |
 
-Pick the opencode recipe with `opencode --version`. The full-screen
+Pick the opencode recipe with `opencode --version` and the presence
+of `concerto_spawn` in the orchestrator's tool catalog: plugin
+present → headless workers, no pane at all. The full-screen
 TUI (`opencode`) has `--auto`. Auto-accept is safe because the
 installed `concerto-worker` agent carries its own deny floor (push,
 apply, deploy, migrate, repo create, plus the question/subagent
