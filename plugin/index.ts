@@ -1,7 +1,7 @@
 import { Plugin } from "@opencode/plugin"
 import {
   WORKER_AGENT,
-  nudgeText,
+  buildNudge,
   orchestratorPrefix,
   shouldNudge,
   workerDenyRules,
@@ -191,9 +191,35 @@ export default Plugin.define({
           const info = await ctx.session.get({ sessionID: event.data.sessionID })
           if (!shouldNudge(info, ctx.location.directory)) continue
           const outcome = event.type.replace("session.execution.", "") as Outcome
+          let changedFiles: string[] | undefined
+          try {
+            const status = await ctx.vcs.status()
+            changedFiles = (Array.isArray(status?.data) ? status.data : [])
+              .map((file) => file.file)
+              .filter((file) => typeof file === "string")
+          } catch {
+            // Non-git directory or vcs error: omit the changed line.
+          }
+          let reason: string | undefined
+          if (outcome !== "succeeded") {
+            try {
+              reason = lastAssistantText(await ctx.session.context({ sessionID: info.id })) || undefined
+            } catch {
+              // No message history: omit the reason line.
+            }
+          }
           await ctx.session.prompt({
             sessionID: info.parentID!,
-            text: nudgeText(workerName(info), info.id, outcome),
+            text: buildNudge({
+              name: workerName(info),
+              sid: info.id,
+              outcome,
+              title: info.title,
+              tokens: info.tokens,
+              cost: info.cost,
+              changedFiles,
+              reason,
+            }),
             delivery: "queue",
             metadata: PROVENANCE(info.id, "event"),
           })

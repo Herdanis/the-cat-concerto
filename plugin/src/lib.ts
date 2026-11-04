@@ -61,6 +61,40 @@ export function orchestratorPrefix(): string {
   return "[concerto:orchestrator]"
 }
 
-export function nudgeText(name: string, sid: string, outcome: Outcome): string {
-  return `[concerto:event ${name} ${sid}] ${outcome} — collect and review now`
+export interface NudgeInput {
+  name: string
+  sid: string
+  outcome: Outcome
+  title?: string
+  tokens?: { input?: number; output?: number }
+  cost?: unknown
+  changedFiles?: string[]
+  reason?: string
+}
+
+export function buildNudge(input: NudgeInput): string {
+  const lines = [
+    `[concerto:event ${input.name} ${input.sid}] ${input.outcome} — collect and review now`,
+  ]
+  const segments: string[] = []
+  if (input.title) segments.push(`task: ${input.title}`)
+  if (typeof input.tokens?.input === "number" || typeof input.tokens?.output === "number") {
+    segments.push(`tokens: ${input.tokens?.input ?? 0} in / ${input.tokens?.output ?? 0} out`)
+  }
+  if (typeof input.cost === "number") segments.push(`cost: $${input.cost.toFixed(4)}`)
+  if (segments.length > 0) lines.push(segments.join(" | "))
+  if (input.changedFiles && input.changedFiles.length > 0) {
+    const total = input.changedFiles.length
+    const shown = input.changedFiles.slice(0, 8)
+    const extra = total - shown.length
+    lines.push(
+      `changed: ${total} ${total === 1 ? "file" : "files"} (${shown.join(", ")}${extra > 0 ? `, +${extra} more` : ""})`,
+    )
+  }
+  if (input.reason) {
+    // Tail of the text, one line max so detail lines stay parseable.
+    const tail = input.reason.replace(/\s+/g, " ").trim().slice(-400)
+    if (tail) lines.push(`reason: ${tail}`)
+  }
+  return lines.join("\n")
 }
