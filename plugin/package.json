@@ -1,0 +1,10 @@
+{
+  "name": "the-cat-concerto-plugin",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "main": "index.ts",
+  "devDependencies": {
+    "@opencode/plugin": "^2.2.5"
+  }
+}
