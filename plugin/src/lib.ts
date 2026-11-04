@@ -2,7 +2,7 @@ export type Outcome = "succeeded" | "failed" | "interrupted"
 
 export const WORKER_AGENT = "concerto-worker"
 
-export interface WorkerTag {
+export type WorkerTag = {
   concerto: {
     role: "worker"
     name: string
