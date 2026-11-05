@@ -102,7 +102,7 @@ export default Plugin.define({
             model: own.model,
             location: { directory },
             parentID: context.sessionID,
-            title: `concerto: ${name}${base ? ` — ${base}` : ""}`,
+            title: `concerto: ${name}${base && base !== name ? ` — ${base}` : ""}`,
             metadata: workerTag(name, directory),
             permissions: workerDenyRules(),
           })

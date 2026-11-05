@@ -57,8 +57,9 @@ describe("shouldNudge", () => {
 })
 
 describe("prefixes", () => {
-  it("worker/orchestrator formats", () => {
-    expect(workerPrefix("backend", "/repo/backend", "ses_123")).toBe("[concerto:worker backend (backend) ses_123]")
+  it("worker prefix shows the suffix only when it differs from the name", () => {
+    expect(workerPrefix("backend", "/repo/backend", "ses_123")).toBe("[concerto:worker backend ses_123]")
+    expect(workerPrefix("backend", "/repo/api", "ses_123")).toBe("[concerto:worker backend (api) ses_123]")
     expect(orchestratorPrefix()).toBe("[concerto:orchestrator]")
   })
 
@@ -68,12 +69,18 @@ describe("prefixes", () => {
 })
 
 describe("buildNudge", () => {
-  it("first line keeps the event prefix, gains the directory suffix", () => {
+  it("first line dedupes the suffix when basename equals the name", () => {
     for (const outcome of ["succeeded", "failed", "interrupted"] as const) {
       expect(
         buildNudge({ name: "backend", sid: "ses_123", directory: "/repo/backend", outcome }),
-      ).toBe(`[concerto:event backend (backend) ses_123] ${outcome} — collect and review now`)
+      ).toBe(`[concerto:event backend ses_123] ${outcome} — collect and review now`)
     }
+  })
+
+  it("first line shows the suffix when basename differs from the name", () => {
+    expect(buildNudge({ name: "backend", sid: "ses_123", directory: "/repo/api", outcome: "succeeded" })).toBe(
+      "[concerto:event backend (api) ses_123] succeeded — collect and review now",
+    )
   })
 
   it("first line omits the suffix when no directory basename exists", () => {
@@ -87,7 +94,7 @@ describe("buildNudge", () => {
       buildNudge({
         name: "backend",
         sid: "ses_123",
-        directory: "/repo/backend",
+        directory: "/repo/api",
         outcome: "failed",
         title: "Fix auth flow",
         tokens: { input: 1200, output: 340 },
@@ -96,7 +103,7 @@ describe("buildNudge", () => {
         reason: "Test suite failed on login",
       }),
     ).toBe(
-      "[concerto:event backend (backend) ses_123] failed — collect and review now\n" +
+      "[concerto:event backend (api) ses_123] failed — collect and review now\n" +
         "task: Fix auth flow | tokens: 1200 in / 340 out | cost: $0.0421\n" +
         "changed: 2 files (src/auth.ts, test/auth.test.ts)\n" +
         "reason: Test suite failed on login",
@@ -115,7 +122,7 @@ describe("buildNudge", () => {
       changedFiles: ["a.ts"],
     })
     expect(text).toBe(
-      "[concerto:event w (w) ses_1] succeeded — collect and review now\n" +
+      "[concerto:event w ses_1] succeeded — collect and review now\n" +
         "task: T | tokens: 1 in / 2 out | cost: $0.0100\n" +
         "changed: 1 file (a.ts)",
     )
@@ -150,7 +157,7 @@ describe("buildNudge", () => {
       outcome: "failed",
       reason: "boom",
     })
-    expect(text).toBe("[concerto:event w (w) ses_1] failed — collect and review now\n" + "reason: boom")
+    expect(text).toBe("[concerto:event w ses_1] failed — collect and review now\n" + "reason: boom")
   })
 
   it("caps the changed list at 8 paths then counts the rest", () => {
@@ -187,7 +194,7 @@ describe("buildNudge", () => {
       outcome: "failed",
       reason: "line one\nline two",
     })
-    expect(text).toBe("[concerto:event w (w) ses_1] failed — collect and review now\n" + "reason: line one line two")
+    expect(text).toBe("[concerto:event w ses_1] failed — collect and review now\n" + "reason: line one line two")
   })
 })
 

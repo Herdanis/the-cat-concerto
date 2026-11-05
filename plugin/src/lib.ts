@@ -55,12 +55,12 @@ export function workerDenyRules(): PermissionRule[] {
 }
 
 export function workerPrefix(name: string, directory: string, sid: string): string {
-  return `[concerto:worker ${name}${dirSuffix(directory)} ${sid}]`
+  return `[concerto:worker ${name}${dirSuffix(name, directory)} ${sid}]`
 }
 
-const dirSuffix = (directory: string): string => {
+const dirSuffix = (name: string, directory: string): string => {
   const base = directory.split("/").filter(Boolean).pop()
-  return base ? ` (${base})` : ""
+  return base && base !== name ? ` (${base})` : ""
 }
 
 export function orchestratorPrefix(): string {
@@ -81,7 +81,7 @@ export interface NudgeInput {
 
 export function buildNudge(input: NudgeInput): string {
   const lines = [
-    `[concerto:event ${input.name}${dirSuffix(input.directory)} ${input.sid}] ${input.outcome} — collect and review now`,
+    `[concerto:event ${input.name}${dirSuffix(input.name, input.directory)} ${input.sid}] ${input.outcome} — collect and review now`,
   ]
   const segments: string[] = []
   if (input.title) segments.push(`task: ${input.title}`)
