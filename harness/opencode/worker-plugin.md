@@ -11,8 +11,9 @@ before ending your turn: files changed (one line each), verification
 commands and results, open items. That report IS your output to the
 orchestrator.
 
-Do NOT write a closing summary as session text — the report tool is
-the channel; the diff remains the source of truth.
+After calling `concerto_report`, end your turn immediately — do not
+add a text message afterwards. The report is the output; a trailing
+summary is noise. The diff remains the source of truth.
 
 `concerto_report` is also the channel for blockers and decision needs.
 Nothing else warrants a message.

@@ -110,36 +110,60 @@ describe("buildNudge", () => {
 
 const assistant = (content: unknown) => ({ type: "assistant", content })
 const toolPart = (name: string, status: string) => ({ type: "tool", name, state: { status } })
+const user = (content: unknown = []) => ({ type: "user", content })
 
 describe("lastTurnReported", () => {
-  it("true when the last assistant turn completed a concerto_report", () => {
+  it("true when the last assistant step completed a concerto_report", () => {
     expect(
       lastTurnReported([
-        { type: "user", content: [] },
+        user(),
         assistant([toolPart("concerto_report", "completed"), { type: "text", text: "done" }]),
       ]),
     ).toBe(true)
   })
 
-  it("false when the report call failed", () => {
-    expect(lastTurnReported([assistant([toolPart("concerto_report", "error")])])).toBe(false)
-  })
-
-  it("false when the report call never finished", () => {
-    expect(lastTurnReported([assistant([toolPart("concerto_report", "running")])])).toBe(false)
-  })
-
-  it("false when the completed report is in an older message", () => {
+  it("true when the report is in an earlier assistant step of the final turn", () => {
     expect(
       lastTurnReported([
+        user(),
+        assistant([{ type: "text", text: "checking" }, toolPart("shell", "completed")]),
+        assistant([{ type: "text", text: "report" }, toolPart("concerto_report", "completed")]),
+        assistant([{ type: "text", text: "Created the file. Left uncommitted." }]),
+      ]),
+    ).toBe(true)
+  })
+
+  it("true with a trailing text-only assistant step after the report", () => {
+    expect(
+      lastTurnReported([
+        user(),
         assistant([toolPart("concerto_report", "completed")]),
-        assistant([{ type: "text", text: "older report, new turn" }]),
+        assistant([{ type: "text", text: "closing noise" }]),
+      ]),
+    ).toBe(true)
+  })
+
+  it("false when the report belongs to a previous turn", () => {
+    expect(
+      lastTurnReported([
+        user(),
+        assistant([toolPart("concerto_report", "completed")]),
+        user(),
+        assistant([{ type: "text", text: "new turn, no report" }]),
       ]),
     ).toBe(false)
   })
 
-  it("false when the last assistant turn has no report", () => {
-    expect(lastTurnReported([assistant([{ type: "text", text: "no report here" }])])).toBe(false)
+  it("false when the report call failed", () => {
+    expect(lastTurnReported([user(), assistant([toolPart("concerto_report", "error")])])).toBe(false)
+  })
+
+  it("false when the report call never finished", () => {
+    expect(lastTurnReported([user(), assistant([toolPart("concerto_report", "running")])])).toBe(false)
+  })
+
+  it("false when the turn has no report", () => {
+    expect(lastTurnReported([user(), assistant([{ type: "text", text: "no report here" }])])).toBe(false)
   })
 
   it("false for empty or malformed input", () => {

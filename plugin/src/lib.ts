@@ -77,14 +77,15 @@ export function isBusy(time?: SessionTime): boolean {
   return (time?.busy ?? 0) > (time?.idle ?? 0)
 }
 
-// True when the last assistant turn delivered a completed report — the
-// report prompt already woke the orchestrator, so the nudge is redundant.
+// True when the final turn delivered a completed report — the report
+// prompt already woke the orchestrator, so the nudge is redundant.
 export function lastTurnReported(messages: Array<{ type?: string; content?: unknown }>): boolean {
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i]
+    if (message?.type === "user") break
     if (message?.type !== "assistant") continue
     const parts = Array.isArray(message.content) ? message.content : []
-    return parts.some((part) => {
+    const reported = parts.some((part) => {
       const candidate = part as { type?: unknown; name?: unknown; state?: { status?: unknown } }
       return (
         candidate?.type === "tool" &&
@@ -92,6 +93,7 @@ export function lastTurnReported(messages: Array<{ type?: string; content?: unkn
         candidate.state?.status === "completed"
       )
     })
+    if (reported) return true
   }
   return false
 }
