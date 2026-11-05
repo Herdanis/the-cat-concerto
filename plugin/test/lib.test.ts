@@ -23,7 +23,7 @@ describe("shouldNudge", () => {
   it("true for worker in matching directory with parent", () => {
     expect(
       shouldNudge(
-        { metadata: workerTag("backend"), parentID: "ses_parent", location: { directory: "/repo" } },
+        { metadata: workerTag("backend", "/repo/backend"), parentID: "ses_parent", location: { directory: "/repo" } },
         "/repo",
       ),
     ).toBe(true)
@@ -32,7 +32,7 @@ describe("shouldNudge", () => {
   it("false when directory differs", () => {
     expect(
       shouldNudge(
-        { metadata: workerTag("backend"), parentID: "ses_parent", location: { directory: "/repo" } },
+        { metadata: workerTag("backend", "/repo/backend"), parentID: "ses_parent", location: { directory: "/repo" } },
         "/other",
       ),
     ).toBe(false)
@@ -40,7 +40,7 @@ describe("shouldNudge", () => {
 
   it("false without parentID", () => {
     expect(
-      shouldNudge({ metadata: workerTag("backend"), location: { directory: "/repo" } }, "/repo"),
+      shouldNudge({ metadata: workerTag("backend", "/repo/backend"), location: { directory: "/repo" } }, "/repo"),
     ).toBe(false)
   })
 
@@ -58,18 +58,28 @@ describe("shouldNudge", () => {
 
 describe("prefixes", () => {
   it("worker/orchestrator formats", () => {
-    expect(workerPrefix("backend", "ses_123")).toBe("[concerto:worker backend ses_123]")
+    expect(workerPrefix("backend", "/repo/backend", "ses_123")).toBe("[concerto:worker backend (backend) ses_123]")
     expect(orchestratorPrefix()).toBe("[concerto:orchestrator]")
+  })
+
+  it("worker prefix omits the suffix when no directory basename exists", () => {
+    expect(workerPrefix("backend", "", "ses_123")).toBe("[concerto:worker backend ses_123]")
   })
 })
 
 describe("buildNudge", () => {
-  it("first line exactly the old static format", () => {
+  it("first line keeps the event prefix, gains the directory suffix", () => {
     for (const outcome of ["succeeded", "failed", "interrupted"] as const) {
-      expect(buildNudge({ name: "backend", sid: "ses_123", outcome })).toBe(
-        `[concerto:event backend ses_123] ${outcome} — collect and review now`,
-      )
+      expect(
+        buildNudge({ name: "backend", sid: "ses_123", directory: "/repo/backend", outcome }),
+      ).toBe(`[concerto:event backend (backend) ses_123] ${outcome} — collect and review now`)
     }
+  })
+
+  it("first line omits the suffix when no directory basename exists", () => {
+    expect(buildNudge({ name: "w", sid: "ses_1", directory: "", outcome: "succeeded" })).toBe(
+      "[concerto:event w ses_1] succeeded — collect and review now",
+    )
   })
 
   it("renders every detail line when all fields are present", () => {
@@ -77,6 +87,7 @@ describe("buildNudge", () => {
       buildNudge({
         name: "backend",
         sid: "ses_123",
+        directory: "/repo/backend",
         outcome: "failed",
         title: "Fix auth flow",
         tokens: { input: 1200, output: 340 },
@@ -85,7 +96,7 @@ describe("buildNudge", () => {
         reason: "Test suite failed on login",
       }),
     ).toBe(
-      "[concerto:event backend ses_123] failed — collect and review now\n" +
+      "[concerto:event backend (backend) ses_123] failed — collect and review now\n" +
         "task: Fix auth flow | tokens: 1200 in / 340 out | cost: $0.0421\n" +
         "changed: 2 files (src/auth.ts, test/auth.test.ts)\n" +
         "reason: Test suite failed on login",
@@ -96,6 +107,7 @@ describe("buildNudge", () => {
     const text = buildNudge({
       name: "w",
       sid: "ses_1",
+      directory: "/repo/w",
       outcome: "succeeded",
       title: "T",
       tokens: { input: 1, output: 2 },
@@ -103,32 +115,53 @@ describe("buildNudge", () => {
       changedFiles: ["a.ts"],
     })
     expect(text).toBe(
-      "[concerto:event w ses_1] succeeded — collect and review now\n" +
+      "[concerto:event w (w) ses_1] succeeded — collect and review now\n" +
         "task: T | tokens: 1 in / 2 out | cost: $0.0100\n" +
         "changed: 1 file (a.ts)",
     )
   })
 
   it("omits the changed line when changedFiles is absent", () => {
-    const text = buildNudge({ name: "w", sid: "ses_1", outcome: "succeeded" })
+    const text = buildNudge({
+      name: "w",
+      sid: "ses_1",
+      directory: "/repo/w",
+      outcome: "succeeded",
+    })
     expect(text).not.toContain("changed:")
   })
 
   it("omits the changed line for an empty file list", () => {
-    const text = buildNudge({ name: "w", sid: "ses_1", outcome: "succeeded", changedFiles: [] })
+    const text = buildNudge({
+      name: "w",
+      sid: "ses_1",
+      directory: "/repo/w",
+      outcome: "succeeded",
+      changedFiles: [],
+    })
     expect(text).not.toContain("changed:")
   })
 
   it("omits the task line when no task segments are present", () => {
-    const text = buildNudge({ name: "w", sid: "ses_1", outcome: "failed", reason: "boom" })
-    expect(text).toBe(
-      "[concerto:event w ses_1] failed — collect and review now\n" + "reason: boom",
-    )
+    const text = buildNudge({
+      name: "w",
+      sid: "ses_1",
+      directory: "/repo/w",
+      outcome: "failed",
+      reason: "boom",
+    })
+    expect(text).toBe("[concerto:event w (w) ses_1] failed — collect and review now\n" + "reason: boom")
   })
 
   it("caps the changed list at 8 paths then counts the rest", () => {
     const files = Array.from({ length: 10 }, (_, i) => `f${i}.ts`)
-    const text = buildNudge({ name: "w", sid: "ses_1", outcome: "succeeded", changedFiles: files })
+    const text = buildNudge({
+      name: "w",
+      sid: "ses_1",
+      directory: "/repo/w",
+      outcome: "succeeded",
+      changedFiles: files,
+    })
     expect(text).toContain(
       "changed: 10 files (f0.ts, f1.ts, f2.ts, f3.ts, f4.ts, f5.ts, f6.ts, f7.ts, +2 more)",
     )
@@ -138,6 +171,7 @@ describe("buildNudge", () => {
     const text = buildNudge({
       name: "w",
       sid: "ses_1",
+      directory: "/repo/w",
       outcome: "failed",
       reason: "x".repeat(1000),
     })
@@ -149,20 +183,23 @@ describe("buildNudge", () => {
     const text = buildNudge({
       name: "w",
       sid: "ses_1",
+      directory: "/repo/w",
       outcome: "failed",
       reason: "line one\nline two",
     })
-    expect(text).toBe(
-      "[concerto:event w ses_1] failed — collect and review now\n" + "reason: line one line two",
-    )
+    expect(text).toBe("[concerto:event w (w) ses_1] failed — collect and review now\n" + "reason: line one line two")
   })
 })
 
 describe("isConcertoWorker / workerTag roundtrip", () => {
   it("tags and recognizes workers", () => {
-    const tag = workerTag("backend")
-    expect(tag).toEqual({ concerto: { role: "worker", name: "backend" } })
+    const tag = workerTag("backend", "/repo/backend")
+    expect(tag).toEqual({ concerto: { role: "worker", name: "backend", directory: "/repo/backend" } })
     expect(isConcertoWorker(tag)).toBe(true)
+  })
+
+  it("recognizes legacy tags without a directory field", () => {
+    expect(isConcertoWorker({ concerto: { role: "worker", name: "legacy" } })).toBe(true)
   })
 
   it("rejects non-worker metadata", () => {

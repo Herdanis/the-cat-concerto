@@ -57,6 +57,18 @@ const workerName = (info: { metadata?: { concerto?: unknown } }): string =>
     ? (info.metadata.concerto as { name: string }).name
     : "worker"
 
+// Metadata first; sessions spawned before the directory field exists
+// fall back to their location.
+const workerDirectory = (info: {
+  metadata?: { concerto?: unknown }
+  location?: { directory?: string }
+}): string =>
+  typeof info.metadata?.concerto === "object" &&
+  info.metadata.concerto !== null &&
+  typeof (info.metadata.concerto as { directory?: unknown }).directory === "string"
+    ? (info.metadata.concerto as { directory: string }).directory
+    : info.location?.directory ?? ""
+
 export default Plugin.define({
   id: "the-cat-concerto",
   async setup(ctx) {
@@ -81,13 +93,14 @@ export default Plugin.define({
           const input = raw as { directory: string; spec: string; name?: string }
           const own = await ctx.session.get({ sessionID: context.sessionID })
           const name = input.name ?? input.directory.split("/").filter(Boolean).pop() ?? "worker"
+          const base = input.directory.split("/").filter(Boolean).pop()
           const worker = await ctx.session.create({
             agent: WORKER_AGENT,
             model: own.model,
             location: { directory: input.directory },
             parentID: context.sessionID,
-            title: `concerto: ${name}`,
-            metadata: workerTag(name),
+            title: `concerto: ${name}${base ? ` — ${base}` : ""}`,
+            metadata: workerTag(name, input.directory),
             permissions: workerDenyRules(),
           })
           await ctx.session.prompt({
@@ -147,7 +160,7 @@ export default Plugin.define({
           }
           await ctx.session.prompt({
             sessionID: own.parentID,
-            text: `${workerPrefix(workerName(own), context.sessionID)}\n${input.text}`,
+            text: `${workerPrefix(workerName(own), workerDirectory(own), context.sessionID)}\n${input.text}`,
             delivery: "queue",
             metadata: PROVENANCE(context.sessionID, "worker"),
           })
@@ -172,6 +185,7 @@ export default Plugin.define({
               cost: info.cost,
               tokens: info.tokens,
               title: info.title,
+              directory: info.location?.directory,
               lastAssistantText: lastAssistantText(messages),
             }),
           }
@@ -213,6 +227,7 @@ export default Plugin.define({
             text: buildNudge({
               name: workerName(info),
               sid: info.id,
+              directory: workerDirectory(info),
               outcome,
               title: info.title,
               tokens: info.tokens,

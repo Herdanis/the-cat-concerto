@@ -6,11 +6,12 @@ export type WorkerTag = {
   concerto: {
     role: "worker"
     name: string
+    directory: string
   }
 }
 
-export function workerTag(name: string): WorkerTag {
-  return { concerto: { role: "worker", name } }
+export function workerTag(name: string, directory: string): WorkerTag {
+  return { concerto: { role: "worker", name, directory } }
 }
 
 export function isConcertoWorker(meta: unknown): boolean {
@@ -53,8 +54,13 @@ export function workerDenyRules(): PermissionRule[] {
   ]
 }
 
-export function workerPrefix(name: string, sid: string): string {
-  return `[concerto:worker ${name} ${sid}]`
+export function workerPrefix(name: string, directory: string, sid: string): string {
+  return `[concerto:worker ${name}${dirSuffix(directory)} ${sid}]`
+}
+
+const dirSuffix = (directory: string): string => {
+  const base = directory.split("/").filter(Boolean).pop()
+  return base ? ` (${base})` : ""
 }
 
 export function orchestratorPrefix(): string {
@@ -64,6 +70,7 @@ export function orchestratorPrefix(): string {
 export interface NudgeInput {
   name: string
   sid: string
+  directory: string
   outcome: Outcome
   title?: string
   tokens?: { input?: number; output?: number }
@@ -74,7 +81,7 @@ export interface NudgeInput {
 
 export function buildNudge(input: NudgeInput): string {
   const lines = [
-    `[concerto:event ${input.name} ${input.sid}] ${input.outcome} — collect and review now`,
+    `[concerto:event ${input.name}${dirSuffix(input.directory)} ${input.sid}] ${input.outcome} — collect and review now`,
   ]
   const segments: string[] = []
   if (input.title) segments.push(`task: ${input.title}`)
