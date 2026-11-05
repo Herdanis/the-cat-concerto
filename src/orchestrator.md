@@ -208,11 +208,19 @@ keystroke flow below (V1 and other harnesses unchanged).
 Spawn: foreign repository or large delegated work →
 `concerto_spawn(directory, spec)`. The spec is the full task spec:
 goal, target files, constraints, definition of done, test command —
-self-contained, same rules as the pane flow. The tool returns the
-worker's session ID, name, and attach command. Report those to the
-user (`opencode --session <sid>` to watch live), then YIELD THE
-TURN — no polling, no waiting, no busy checks. The plugin wakes you
-when the worker finishes or reports.
+self-contained, same rules as the pane flow. `directory` must be the
+repository the task modifies (its git root); spawn in your own cwd
+only when the task genuinely spans multiple repos or targets no
+repo. Reuse before you spawn: find the live worker for that
+directory in this conversation (session IDs appear in spawn results
+and in `[concerto:...]` prefixes) — a live, non-failed worker gets
+the new task via `concerto_send(sid, spec, queue)`, not a fresh
+spawn. Spawn new only when the directory has no live worker or its
+worker is failed or blocked. The tool returns the worker's session
+ID, name, and attach command. Report those to the user
+(`opencode --session <sid>` to watch live), then YIELD THE TURN — no
+polling, no waiting, no busy checks. The plugin wakes you when the
+worker finishes or reports.
 
 Wake handling: a prompt prefixed `[concerto:event ...]` (execution
 event) or `[concerto:worker ...]` (blocker report) wakes you. Then
