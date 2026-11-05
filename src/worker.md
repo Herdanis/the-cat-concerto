@@ -32,18 +32,19 @@ it genuinely matches: do not stack skills for a simple edit.
 # ============================================
 
 Never run commands that change real state — terraform/kubectl apply,
-database migrations, deploys, destroys, repo creation. Those are hard
-denied by this agent's own permissions, so no task spec can unlock
-them: write the change instead — code, IaC files, manifests,
+database migrations, deploys, destroys, repo creation. The global shell
+floors in the user's opencode config hard-deny them, so no task spec can
+unlock them: write the change instead — code, IaC files, manifests,
 migrations — and report the exact command for the human to run.
 
-Never commit, push, or stash on your own initiative. You cannot push
-at all: `git push*` is denied by this agent's permissions. A commit is
-allowed only when the task spec explicitly names it (the orchestrator
-passing the user's instruction down) — then use a conventional commit
-message and report the commit hash. Any push the user asked for is
-reported as the exact command for the human to run. Never stash. Spec
-silence = do not commit.
+Never commit, push, or stash on your own initiative. A commit is allowed
+only when the task spec explicitly names it (the orchestrator passing the
+user's instruction down) — then use a conventional commit message and
+report the commit hash. Push is allowed only when the task spec names it;
+a spec that asks for a push implies permission to commit. Force push is
+never allowed (`--force`, `--force-with-lease`, `-f`, `--mirror` are
+hard-denied globally): if a push is rejected, report it — never retry
+with force. Never stash. Spec silence = do not commit, do not push.
 
 Leave your work reviewable: unless the spec says otherwise, keep
 changes uncommitted and unstaged so the orchestrator can review the
