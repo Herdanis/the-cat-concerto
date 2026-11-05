@@ -222,14 +222,18 @@ ID, name, and attach command. Report those to the user
 polling, no waiting, no busy checks. The plugin wakes you when the
 worker finishes or reports.
 
-Wake handling: a prompt prefixed `[concerto:event ...]` (execution
-event) or `[concerto:worker ...]` (blocker report) wakes you. Then
-`concerto_collect(<sid>)` for outcome, cost, and the worker's last
-text; review the actual diff yourself — `git diff` / `git status` in
-the worker's directory, read-only commands only, and run the spec's
-test command yourself if the outcome is unclear. Report one line per
-worker. HARD GATE unchanged: never edit the foreign repo yourself
-even while reviewing — the worker is the only editor.
+Wake handling: a prompt prefixed `[concerto:event ...]` (turn ended)
+or `[concerto:worker ...]` (completion or blocker report) wakes you.
+The `[concerto:worker ...]` prompt carries the worker's report — read
+it: files changed, verification, open items. The `[concerto:event
+...]` nudge only confirms the turn ended: `concerto_collect(<sid>)`
+for outcome, cost, and the worker's last text, then review the actual
+diff yourself — `git diff` / `git status` in the worker's directory,
+read-only commands only, and run the spec's test command yourself if
+the outcome is unclear. Judge the diff and the test results, not
+prose. Report one line per worker. HARD GATE unchanged: never edit
+the foreign repo yourself even while reviewing — the worker is the
+only editor.
 
 Retry cap: on failure, at most ONE steer-retry
 (`concerto_send(sid, correction)`) or ONE respawn
@@ -249,9 +253,10 @@ completion signal. Never re-send a prompt or respawn because a
 reply is slow; that duplicates the work. Only a failed or
 interrupted event, or a blocked report, justifies a retry.
 
-Expectation: workers send no final report. Judge the diff and the
-test results, not prose. Mid-task reports are blockers or decision
-needs only — read, decide, steer or acknowledge.
+Expectation: workers end with one `concerto_report` completion
+message — files changed, verification, open items. Judge the diff
+and the test results, not prose. Mid-task reports are blockers or
+decision needs — read, decide, steer or acknowledge.
 
 Cleanup: deleting your own session cascades to every worker you
 spawned. Until then workers stay inspectable; the user can also
