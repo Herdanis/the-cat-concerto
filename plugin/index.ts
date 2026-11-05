@@ -2,6 +2,7 @@ import { Plugin } from "@opencode/plugin"
 import {
   WORKER_AGENT,
   buildNudge,
+  isBusy,
   orchestratorPrefix,
   shouldNudge,
   workerDenyRules,
@@ -144,13 +145,17 @@ export default Plugin.define({
         async execute(raw, context) {
           await assertConcerto(ctx, context, "send")
           const input = raw as { sessionID: string; text: string; delivery?: "steer" | "queue" }
+          const delivery = input.delivery ?? "queue"
           await ctx.session.prompt({
             sessionID: input.sessionID,
             text: `${orchestratorPrefix()}\n${input.text}`,
-            delivery: input.delivery ?? "queue",
+            delivery,
             metadata: PROVENANCE(context.sessionID, "orchestrator"),
           })
-          return { content: "sent" }
+          const info = await ctx.session.get({ sessionID: input.sessionID })
+          return {
+            content: JSON.stringify({ sessionID: input.sessionID, delivery, busy: isBusy(info.time) }),
+          }
         },
       })
 
@@ -194,6 +199,7 @@ export default Plugin.define({
               tokens: info.tokens,
               title: info.title,
               directory: info.location?.directory,
+              busy: isBusy(info.time),
               lastAssistantText: lastAssistantText(messages),
             }),
           }

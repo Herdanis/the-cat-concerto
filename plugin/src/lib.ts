@@ -67,6 +67,16 @@ export function orchestratorPrefix(): string {
   return "[concerto:orchestrator]"
 }
 
+export interface SessionTime {
+  busy?: number
+  idle?: number
+}
+
+// idle is only stamped when a turn finishes; absent means never idle.
+export function isBusy(time?: SessionTime): boolean {
+  return (time?.busy ?? 0) > (time?.idle ?? 0)
+}
+
 export interface NudgeInput {
   name: string
   sid: string

@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test"
 import {
   WORKER_AGENT,
   buildNudge,
+  isBusy,
   isConcertoWorker,
   orchestratorPrefix,
   shouldNudge,
@@ -195,6 +196,29 @@ describe("buildNudge", () => {
       reason: "line one\nline two",
     })
     expect(text).toBe("[concerto:event w ses_1] failed — collect and review now\n" + "reason: line one line two")
+  })
+})
+
+describe("isBusy", () => {
+  it("true when busy is newer than idle", () => {
+    expect(isBusy({ busy: 200, idle: 100 })).toBe(true)
+  })
+
+  it("true when idle is absent while busy", () => {
+    expect(isBusy({ busy: 200 })).toBe(true)
+  })
+
+  it("false when idle is newer than busy", () => {
+    expect(isBusy({ busy: 100, idle: 200 })).toBe(false)
+  })
+
+  it("false when busy equals idle", () => {
+    expect(isBusy({ busy: 100, idle: 100 })).toBe(false)
+  })
+
+  it("false when both are absent", () => {
+    expect(isBusy({})).toBe(false)
+    expect(isBusy(undefined)).toBe(false)
   })
 })
 
