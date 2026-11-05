@@ -4,6 +4,7 @@ import {
   buildNudge,
   isBusy,
   isConcertoWorker,
+  lastTurnReported,
   orchestratorPrefix,
   shouldNudge,
   workerDenyRules,
@@ -104,6 +105,47 @@ describe("buildNudge", () => {
     } as Parameters<typeof buildNudge>[0])
     expect(text).toBe("[concerto:event backend ses_123] failed — collect and review now")
     expect(text).not.toContain("\n")
+  })
+})
+
+const assistant = (content: unknown) => ({ type: "assistant", content })
+const toolPart = (name: string, status: string) => ({ type: "tool", name, state: { status } })
+
+describe("lastTurnReported", () => {
+  it("true when the last assistant turn completed a concerto_report", () => {
+    expect(
+      lastTurnReported([
+        { type: "user", content: [] },
+        assistant([toolPart("concerto_report", "completed"), { type: "text", text: "done" }]),
+      ]),
+    ).toBe(true)
+  })
+
+  it("false when the report call failed", () => {
+    expect(lastTurnReported([assistant([toolPart("concerto_report", "error")])])).toBe(false)
+  })
+
+  it("false when the report call never finished", () => {
+    expect(lastTurnReported([assistant([toolPart("concerto_report", "running")])])).toBe(false)
+  })
+
+  it("false when the completed report is in an older message", () => {
+    expect(
+      lastTurnReported([
+        assistant([toolPart("concerto_report", "completed")]),
+        assistant([{ type: "text", text: "older report, new turn" }]),
+      ]),
+    ).toBe(false)
+  })
+
+  it("false when the last assistant turn has no report", () => {
+    expect(lastTurnReported([assistant([{ type: "text", text: "no report here" }])])).toBe(false)
+  })
+
+  it("false for empty or malformed input", () => {
+    expect(lastTurnReported([])).toBe(false)
+    expect(lastTurnReported([{ type: "assistant" }])).toBe(false)
+    expect(lastTurnReported([{ type: "assistant", content: "not-a-list" }])).toBe(false)
   })
 })
 

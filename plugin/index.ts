@@ -3,6 +3,7 @@ import {
   WORKER_AGENT,
   buildNudge,
   isBusy,
+  lastTurnReported,
   orchestratorPrefix,
   shouldNudge,
   workerDenyRules,
@@ -218,6 +219,11 @@ export default Plugin.define({
           const info = await ctx.session.get({ sessionID: event.data.sessionID })
           if (!shouldNudge(info, ctx.location.directory)) continue
           const outcome = event.type.replace("session.execution.", "") as Outcome
+          try {
+            if (lastTurnReported(await ctx.session.context({ sessionID: info.id }))) continue
+          } catch {
+            // No history readable: fall through and send the nudge.
+          }
           await ctx.session.prompt({
             sessionID: info.parentID!,
             text: buildNudge({
