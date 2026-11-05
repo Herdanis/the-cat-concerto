@@ -110,7 +110,6 @@ export default Plugin.define({
           // The per-location plugin instance ignores create's location —
           // move explicitly before the task prompt runs.
           await ctx.session.move({ sessionID: worker.id, directory })
-          const moved = await ctx.session.get({ sessionID: worker.id })
           await ctx.session.prompt({
             sessionID: worker.id,
             text: `${orchestratorPrefix()}\n${input.spec}`,
@@ -122,7 +121,7 @@ export default Plugin.define({
             content: JSON.stringify({
               sessionID: worker.id,
               name,
-              directory: moved.location?.directory,
+              directory,
               attach: `opencode --session ${worker.id}`,
             }),
           }
@@ -219,23 +218,6 @@ export default Plugin.define({
           const info = await ctx.session.get({ sessionID: event.data.sessionID })
           if (!shouldNudge(info, ctx.location.directory)) continue
           const outcome = event.type.replace("session.execution.", "") as Outcome
-          let changedFiles: string[] | undefined
-          try {
-            const status = await ctx.vcs.status()
-            changedFiles = (Array.isArray(status?.data) ? status.data : [])
-              .map((file) => file.file)
-              .filter((file) => typeof file === "string")
-          } catch {
-            // Non-git directory or vcs error: omit the changed line.
-          }
-          let reason: string | undefined
-          if (outcome !== "succeeded") {
-            try {
-              reason = lastAssistantText(await ctx.session.context({ sessionID: info.id })) || undefined
-            } catch {
-              // No message history: omit the reason line.
-            }
-          }
           await ctx.session.prompt({
             sessionID: info.parentID!,
             text: buildNudge({
@@ -243,11 +225,6 @@ export default Plugin.define({
               sid: info.id,
               directory: workerDirectory(info),
               outcome,
-              title: info.title,
-              tokens: info.tokens,
-              cost: info.cost,
-              changedFiles,
-              reason,
             }),
             delivery: "queue",
             metadata: PROVENANCE(info.id, "event"),

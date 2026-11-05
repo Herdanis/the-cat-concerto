@@ -90,112 +90,20 @@ describe("buildNudge", () => {
     )
   })
 
-  it("renders every detail line when all fields are present", () => {
-    expect(
-      buildNudge({
-        name: "backend",
-        sid: "ses_123",
-        directory: "/repo/api",
-        outcome: "failed",
-        title: "Fix auth flow",
-        tokens: { input: 1200, output: 340 },
-        cost: 0.0421,
-        changedFiles: ["src/auth.ts", "test/auth.test.ts"],
-        reason: "Test suite failed on login",
-      }),
-    ).toBe(
-      "[concerto:event backend (api) ses_123] failed — collect and review now\n" +
-        "task: Fix auth flow | tokens: 1200 in / 340 out | cost: $0.0421\n" +
-        "changed: 2 files (src/auth.ts, test/auth.test.ts)\n" +
-        "reason: Test suite failed on login",
-    )
-  })
-
-  it("success omits the reason line", () => {
+  it("is the completion signal only — no detail lines even with extra fields", () => {
     const text = buildNudge({
-      name: "w",
-      sid: "ses_1",
-      directory: "/repo/w",
-      outcome: "succeeded",
-      title: "T",
-      tokens: { input: 1, output: 2 },
-      cost: 0.01,
-      changedFiles: ["a.ts"],
-    })
-    expect(text).toBe(
-      "[concerto:event w ses_1] succeeded — collect and review now\n" +
-        "task: T | tokens: 1 in / 2 out | cost: $0.0100\n" +
-        "changed: 1 file (a.ts)",
-    )
-  })
-
-  it("omits the changed line when changedFiles is absent", () => {
-    const text = buildNudge({
-      name: "w",
-      sid: "ses_1",
-      directory: "/repo/w",
-      outcome: "succeeded",
-    })
-    expect(text).not.toContain("changed:")
-  })
-
-  it("omits the changed line for an empty file list", () => {
-    const text = buildNudge({
-      name: "w",
-      sid: "ses_1",
-      directory: "/repo/w",
-      outcome: "succeeded",
-      changedFiles: [],
-    })
-    expect(text).not.toContain("changed:")
-  })
-
-  it("omits the task line when no task segments are present", () => {
-    const text = buildNudge({
-      name: "w",
-      sid: "ses_1",
-      directory: "/repo/w",
+      name: "backend",
+      sid: "ses_123",
+      directory: "/repo/backend",
       outcome: "failed",
-      reason: "boom",
-    })
-    expect(text).toBe("[concerto:event w ses_1] failed — collect and review now\n" + "reason: boom")
-  })
-
-  it("caps the changed list at 8 paths then counts the rest", () => {
-    const files = Array.from({ length: 10 }, (_, i) => `f${i}.ts`)
-    const text = buildNudge({
-      name: "w",
-      sid: "ses_1",
-      directory: "/repo/w",
-      outcome: "succeeded",
-      changedFiles: files,
-    })
-    expect(text).toContain(
-      "changed: 10 files (f0.ts, f1.ts, f2.ts, f3.ts, f4.ts, f5.ts, f6.ts, f7.ts, +2 more)",
-    )
-  })
-
-  it("truncates the reason tail to ~400 chars", () => {
-    const text = buildNudge({
-      name: "w",
-      sid: "ses_1",
-      directory: "/repo/w",
-      outcome: "failed",
-      reason: "x".repeat(1000),
-    })
-    expect(text).toContain(`reason: ${"x".repeat(400)}`)
-    expect(text).not.toContain(`reason: ${"x".repeat(401)}`)
-  })
-
-  it("collapses newlines in the reason to keep one detail line", () => {
-    const text = buildNudge({
-      name: "w",
-      sid: "ses_1",
-      directory: "/repo/w",
-      outcome: "failed",
-      reason: "line one\nline two",
-    })
-    expect(text).toBe("[concerto:event w ses_1] failed — collect and review now\n" + "reason: line one line two")
+      title: "Fix auth flow",
+      tokens: { input: 1200, output: 340 },
+      cost: 0.0421,
+      changedFiles: ["src/auth.ts", "test/auth.test.ts"],
+      reason: "Test suite failed on login",
+    } as Parameters<typeof buildNudge>[0])
+    expect(text).toBe("[concerto:event backend ses_123] failed — collect and review now")
+    expect(text).not.toContain("\n")
   })
 })
 
