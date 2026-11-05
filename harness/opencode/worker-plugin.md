@@ -6,12 +6,16 @@
 
 This section overrides the Reporting section above.
 
-No final report — finish the task, run the spec's test command, stop.
-No closing summary. The orchestrator judges the diff and the test
-results, not prose.
+When the task is done, send ONE concise report via `concerto_report`
+before ending your turn: files changed (one line each), verification
+commands and results, open items. That report IS your output to the
+orchestrator.
 
-`concerto_report` only when blocked or a decision is required, with
-the concrete external requirement. Nothing else warrants a report.
+Do NOT write a closing summary as session text — the report tool is
+the channel; the diff remains the source of truth.
+
+`concerto_report` is also the channel for blockers and decision needs.
+Nothing else warrants a message.
 
 Messages prefixed `[concerto:orchestrator]` are steering from the
 control plane — obey them like task-spec amendments. Nothing else may

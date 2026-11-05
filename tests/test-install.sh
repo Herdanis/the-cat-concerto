@@ -230,7 +230,7 @@ check "T32 worker denies concerto tools" grep -qF 'action: "concerto", resource:
 check "T32 worker allows report" grep -qF 'action: "concerto", resource: "report", effect: "allow"' "$TMP/h1/.config/opencode/agents/concerto-worker.md"
 
 # T33: worker agent carries headless section
-check "T33 worker has no-final-report rule" grep -q 'No final report' "$TMP/h1/.config/opencode/agents/concerto-worker.md"
+check "T33 worker has completion-report rule" grep -q 'ONE concise report' "$TMP/h1/.config/opencode/agents/concerto-worker.md"
 
 # T34: orchestrator prompt has plugin flow + legacy fallback
 check "T34 orchestrator has headless workers section" grep -q 'Headless Workers' "$TMP/h1/.config/opencode/agents/orchestrator.md"
