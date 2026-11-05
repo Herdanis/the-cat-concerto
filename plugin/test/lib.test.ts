@@ -112,50 +112,54 @@ const assistant = (content: unknown) => ({ type: "assistant", content })
 const toolPart = (name: string, status: string) => ({ type: "tool", name, state: { status } })
 const user = (content: unknown = []) => ({ type: "user", content })
 
+const step = (type: string, content: unknown[], created: number) => ({ type, content, time: { created } })
+const reportPart = () => toolPart("concerto_report", "completed")
+
 describe("lastTurnReported", () => {
   it("true when the last assistant step completed a concerto_report", () => {
     expect(
       lastTurnReported([
         user(),
-        assistant([toolPart("concerto_report", "completed"), { type: "text", text: "done" }]),
+        assistant([reportPart(), { type: "text", text: "done" }]),
       ]),
     ).toBe(true)
   })
 
-  it("true when the report is in an earlier assistant step of the final turn", () => {
-    expect(
-      lastTurnReported([
-        user(),
-        assistant([{ type: "text", text: "checking" }, toolPart("shell", "completed")]),
-        assistant([{ type: "text", text: "report" }, toolPart("concerto_report", "completed")]),
-        assistant([{ type: "text", text: "Created the file. Left uncommitted." }]),
-      ]),
-    ).toBe(true)
+  it("true for oldest-first input with the report in an earlier step", () => {
+    const turn = [
+      step("user", [], 1),
+      step("assistant", [{ type: "text", text: "checking" }, toolPart("shell", "completed")], 2),
+      step("assistant", [reportPart()], 3),
+      step("assistant", [{ type: "text", text: "Created the file. Left uncommitted." }], 4),
+    ]
+    expect(lastTurnReported(turn)).toBe(true)
   })
 
-  it("true with a trailing text-only assistant step after the report", () => {
-    expect(
-      lastTurnReported([
-        user(),
-        assistant([toolPart("concerto_report", "completed")]),
-        assistant([{ type: "text", text: "closing noise" }]),
-      ]),
-    ).toBe(true)
+  it("true for newest-first input with the report in the second-to-last step", () => {
+    const turn = [
+      step("assistant", [{ type: "text", text: "Created the file. Left uncommitted." }], 4),
+      step("assistant", [reportPart()], 3),
+      step("assistant", [{ type: "text", text: "checking" }, toolPart("shell", "completed")], 2),
+      step("user", [], 1),
+    ]
+    expect(lastTurnReported(turn)).toBe(true)
   })
 
-  it("false when the report belongs to a previous turn", () => {
-    expect(
-      lastTurnReported([
-        user(),
-        assistant([toolPart("concerto_report", "completed")]),
-        user(),
-        assistant([{ type: "text", text: "new turn, no report" }]),
-      ]),
-    ).toBe(false)
+  it("false when the report belongs to a previous turn, in either order", () => {
+    const turn = [
+      step("user", [], 1),
+      step("assistant", [reportPart()], 2),
+      step("user", [], 3),
+      step("assistant", [{ type: "text", text: "new turn, no report" }], 4),
+    ]
+    expect(lastTurnReported(turn)).toBe(false)
+    expect(lastTurnReported([...turn].reverse())).toBe(false)
   })
 
-  it("false when the report call failed", () => {
-    expect(lastTurnReported([user(), assistant([toolPart("concerto_report", "error")])])).toBe(false)
+  it("false when the report call failed, in either order", () => {
+    const turn = [step("user", [], 1), step("assistant", [toolPart("concerto_report", "error")], 2)]
+    expect(lastTurnReported(turn)).toBe(false)
+    expect(lastTurnReported([...turn].reverse())).toBe(false)
   })
 
   it("false when the report call never finished", () => {
@@ -164,6 +168,14 @@ describe("lastTurnReported", () => {
 
   it("false when the turn has no report", () => {
     expect(lastTurnReported([user(), assistant([{ type: "text", text: "no report here" }])])).toBe(false)
+  })
+
+  it("treats missing timestamps as 0 and keeps input order", () => {
+    const turn = [
+      assistant([reportPart()]),
+      assistant([{ type: "text", text: "trailing noise" }]),
+    ]
+    expect(lastTurnReported(turn)).toBe(true)
   })
 
   it("false for empty or malformed input", () => {

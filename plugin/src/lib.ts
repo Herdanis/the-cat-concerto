@@ -79,9 +79,13 @@ export function isBusy(time?: SessionTime): boolean {
 
 // True when the final turn delivered a completed report — the report
 // prompt already woke the orchestrator, so the nudge is redundant.
-export function lastTurnReported(messages: Array<{ type?: string; content?: unknown }>): boolean {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i]
+// context() may return newest-first, so order by created time first.
+export function lastTurnReported(
+  messages: Array<{ type?: string; content?: unknown; time?: { created?: unknown } }>,
+): boolean {
+  const ordered = [...messages].sort((a, b) => created(a) - created(b))
+  for (let i = ordered.length - 1; i >= 0; i--) {
+    const message = ordered[i]
     if (message?.type === "user") break
     if (message?.type !== "assistant") continue
     const parts = Array.isArray(message.content) ? message.content : []
@@ -97,6 +101,10 @@ export function lastTurnReported(messages: Array<{ type?: string; content?: unkn
   }
   return false
 }
+
+// Missing/invalid timestamps sort as 0 and keep input order (stable sort).
+const created = (message: { time?: { created?: unknown } }): number =>
+  typeof message?.time?.created === "number" && Number.isFinite(message.time.created) ? message.time.created : 0
 
 export interface NudgeInput {
   name: string
