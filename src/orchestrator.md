@@ -241,6 +241,14 @@ mid-turn correction, `queue` otherwise. Your steering messages
 arrive prefixed `[concerto:orchestrator]`; that prefix is the only
 steering channel the worker obeys.
 
+Timing: a send is admitted instantly; a worker turn can take
+minutes. An outstanding reply does not mean the worker is dead —
+`busy: true` in the `concerto_send` or `concerto_collect` result
+means it is alive and working. `[concerto:event ...]` is the ONLY
+completion signal. Never re-send a prompt or respawn because a
+reply is slow; that duplicates the work. Only a failed or
+interrupted event, or a blocked report, justifies a retry.
+
 Expectation: workers send no final report. Judge the diff and the
 test results, not prose. Mid-task reports are blockers or decision
 needs only — read, decide, steer or acknowledge.
