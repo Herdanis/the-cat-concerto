@@ -92,17 +92,24 @@ export default Plugin.define({
           await assertConcerto(ctx, context, "spawn")
           const input = raw as { directory: string; spec: string; name?: string }
           const own = await ctx.session.get({ sessionID: context.sessionID })
-          const name = input.name ?? input.directory.split("/").filter(Boolean).pop() ?? "worker"
-          const base = input.directory.split("/").filter(Boolean).pop()
+          const directory = input.directory.startsWith("/")
+            ? input.directory
+            : `${(own.location?.directory ?? ctx.location.directory).replace(/\/+$/, "")}/${input.directory}`
+          const name = input.name ?? directory.split("/").filter(Boolean).pop() ?? "worker"
+          const base = directory.split("/").filter(Boolean).pop()
           const worker = await ctx.session.create({
             agent: WORKER_AGENT,
             model: own.model,
-            location: { directory: input.directory },
+            location: { directory },
             parentID: context.sessionID,
             title: `concerto: ${name}${base ? ` — ${base}` : ""}`,
-            metadata: workerTag(name, input.directory),
+            metadata: workerTag(name, directory),
             permissions: workerDenyRules(),
           })
+          // The per-location plugin instance ignores create's location —
+          // move explicitly before the task prompt runs.
+          await ctx.session.move({ sessionID: worker.id, directory })
+          const moved = await ctx.session.get({ sessionID: worker.id })
           await ctx.session.prompt({
             sessionID: worker.id,
             text: `${orchestratorPrefix()}\n${input.spec}`,
@@ -114,6 +121,7 @@ export default Plugin.define({
             content: JSON.stringify({
               sessionID: worker.id,
               name,
+              directory: moved.location?.directory,
               attach: `opencode --session ${worker.id}`,
             }),
           }
