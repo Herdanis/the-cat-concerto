@@ -78,6 +78,24 @@ const ownerError = (sid: string, parentID: string | undefined, caller: string): 
 const route = (info: { parentID?: string | null; agent?: string }): string =>
   !info.parentID || info.agent === WORKER_AGENT ? "" : info.parentID
 
+const MOVE_DEADLINE_MS = 3000
+
+// session.move lands at the next delivery boundary, so reads right after it can
+// still show the pre-move directory. Poll until the target shows up; anything
+// else before the deadline is a real failure.
+const waitForMove = async (
+  ctx: Parameters<NonNullable<Parameters<typeof Plugin.define>[0]["setup"]>>[0],
+  sessionID: string,
+  directory: string,
+) => {
+  const deadline = Date.now() + MOVE_DEADLINE_MS
+  for (;;) {
+    const info = await ctx.session.get({ sessionID })
+    if (info.location?.directory === directory || Date.now() >= deadline) return info
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+}
+
 export default Plugin.define({
   id: "the-cat-concerto",
   async setup(ctx) {
@@ -138,7 +156,7 @@ export default Plugin.define({
           // explicitly, confirm it landed, THEN prompt: a prompt before the
           // move lets the worker's first turn run without its spec.
           await ctx.session.move({ sessionID: worker.id, directory })
-          const landed = await ctx.session.get({ sessionID: worker.id })
+          const landed = await waitForMove(ctx, worker.id, directory)
           if (landed.location?.directory !== directory) {
             // A session left unspecced would stay "live" and trip the
             // duplicate gate on the next attempt.

@@ -16,9 +16,12 @@ const ORCHESTRATOR = "ses_orchestrator"
 
 // Records every session API call in order and serves just enough state for
 // spawn to run. `directory` is where move actually lands the session.
+// `moveLag` simulates the projected move: the first N reads after a move keep
+// returning the pre-move location.
 function harness(
   options: {
     landIn?: string
+    moveLag?: number
     siblings?: Array<Record<string, unknown>>
     events?: Array<{ type: string; data: { sessionID: string } }>
   } = {},
@@ -37,6 +40,7 @@ function harness(
     ],
   ])
   const tools: Tool[] = []
+  const pending = new Map<string, { directory: string; lag: number }>()
   let created = 0
 
   const ctx: any = {
@@ -65,17 +69,29 @@ function harness(
       create: async (input: Record<string, any>) => {
         calls.push("create")
         const id = `ses_worker${++created}`
-        sessions.set(id, { ...input, id, location: input.location, time: { created: 0, updated: 0 } })
+        // A lagging harness starts the worker at the parent directory, like the
+        // real create that ignores its location.
+        const location = options.moveLag ? { directory: "/repo" } : input.location
+        sessions.set(id, { ...input, id, location, time: { created: 0, updated: 0 } })
         return sessions.get(id)
       },
       get: async ({ sessionID }: { sessionID: string }) => {
         calls.push("get")
-        return sessions.get(sessionID) ?? { id: sessionID, location: { directory: "/repo/api" } }
+        const info = sessions.get(sessionID) ?? { id: sessionID, location: { directory: "/repo/api" } }
+        const move = pending.get(sessionID)
+        if (move && move.lag > 0) {
+          move.lag -= 1
+          return info
+        }
+        if (move) {
+          info.location = { directory: move.directory }
+          pending.delete(sessionID)
+        }
+        return info
       },
       move: async ({ sessionID, directory }: { sessionID: string; directory: string }) => {
         calls.push("move")
-        const info = sessions.get(sessionID)!
-        info.location = { directory: options.landIn ?? directory }
+        pending.set(sessionID, { directory: options.landIn ?? directory, lag: options.moveLag ?? 0 })
       },
       synthetic: async (input: { sessionID: string }) => {
         calls.push("synthetic")
@@ -136,14 +152,30 @@ describe("spawn ordering", () => {
     expect(worker.parentID).toBe(ORCHESTRATOR)
   })
 
-  it("sends no spec and no turn when the move did not land", async () => {
-    const { ctx, calls, tools } = harness({ landIn: "/elsewhere" })
+  it(
+    "sends no spec and no turn when the move did not land",
+    async () => {
+      const { ctx, calls, tools } = harness({ landIn: "/elsewhere" })
+      await plugin.setup(ctx)
+      const result = await tool(tools, "spawn").execute({ directory: "/repo/api", spec: "spec" }, caller)
+
+      // Polls the full deadline, so the get count varies with machine speed.
+      expect(calls.at(-1)).toBe("archive")
+      expect(calls).toContain("move")
+      expect(calls).not.toContain("synthetic")
+      expect(result.content).toContain("did not move to /repo/api")
+      expect(result.content).toContain("session archived")
+    },
+    10_000,
+  )
+
+  it("waits out a lagging move projection before sending the spec", async () => {
+    const { ctx, calls, tools } = harness({ moveLag: 2 })
     await plugin.setup(ctx)
     const result = await tool(tools, "spawn").execute({ directory: "/repo/api", spec: "spec" }, caller)
 
-    expect(calls).toEqual(["get", "create", "move", "get", "archive"])
-    expect(result.content).toContain("did not move to /repo/api")
-    expect(result.content).toContain("session archived")
+    expect(calls).toEqual(["get", "create", "move", "get", "get", "get", "synthetic", "archive"])
+    expect(JSON.parse(result.content)).toMatchObject({ sessionID: "ses_worker1", directory: "/repo/api" })
   })
 
   it("title omits the task when none is given", async () => {
