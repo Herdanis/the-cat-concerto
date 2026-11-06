@@ -2,8 +2,10 @@ import { describe, expect, it } from "bun:test"
 import {
   WORKER_AGENT,
   buildNudge,
+  concertoTitle,
   isBusy,
   isConcertoWorker,
+  isLive,
   lastTurnReported,
   orchestratorPrefix,
   shouldNudge,
@@ -22,39 +24,32 @@ describe("workerDenyRules", () => {
 })
 
 describe("shouldNudge", () => {
-  it("true for worker in matching directory with parent", () => {
+  it("true when the terminating worker's parent is the orchestrator", () => {
     expect(
-      shouldNudge(
-        { metadata: workerTag("backend", "/repo/backend"), parentID: "ses_parent", location: { directory: "/repo" } },
-        "/repo",
-      ),
+      shouldNudge({ metadata: workerTag("backend", "/repo/backend"), parentID: "ses_parent" }, "ses_parent"),
     ).toBe(true)
   })
 
-  it("false when directory differs", () => {
+  it("false for another orchestrator's worker", () => {
     expect(
-      shouldNudge(
-        { metadata: workerTag("backend", "/repo/backend"), parentID: "ses_parent", location: { directory: "/repo" } },
-        "/other",
-      ),
+      shouldNudge({ metadata: workerTag("backend", "/repo/backend"), parentID: "ses_other" }, "ses_parent"),
     ).toBe(false)
   })
 
   it("false without parentID", () => {
-    expect(
-      shouldNudge({ metadata: workerTag("backend", "/repo/backend"), location: { directory: "/repo" } }, "/repo"),
-    ).toBe(false)
+    expect(shouldNudge({ metadata: workerTag("backend", "/repo/backend") }, "ses_parent")).toBe(false)
+  })
+
+  it("false without an orchestrator id", () => {
+    expect(shouldNudge({ metadata: workerTag("backend", "/repo/backend"), parentID: "ses_parent" }, "")).toBe(false)
   })
 
   it("false without worker metadata", () => {
-    expect(shouldNudge({ parentID: "ses_parent", location: { directory: "/repo" } }, "/repo")).toBe(false)
-    expect(shouldNudge({ metadata: {}, parentID: "ses_parent", location: { directory: "/repo" } }, "/repo")).toBe(false)
-    expect(
-      shouldNudge(
-        { metadata: { concerto: { role: "orchestrator" } }, parentID: "ses_parent", location: { directory: "/repo" } },
-        "/repo",
-      ),
-    ).toBe(false)
+    expect(shouldNudge({ parentID: "ses_parent" }, "ses_parent")).toBe(false)
+    expect(shouldNudge({ metadata: {}, parentID: "ses_parent" }, "ses_parent")).toBe(false)
+    expect(shouldNudge({ metadata: { concerto: { role: "orchestrator" } }, parentID: "ses_parent" }, "ses_parent")).toBe(
+      false,
+    )
   })
 })
 
@@ -65,17 +60,31 @@ describe("prefixes", () => {
     expect(orchestratorPrefix()).toBe("[concerto:orchestrator]")
   })
 
+  it("worker prefix carries the task token when given", () => {
+    expect(workerPrefix("api", "/repo/api", "ses_123", "am06-policy")).toBe("[concerto:worker api am06-policy ses_123]")
+    expect(workerPrefix("api", "/repo/wt", "ses_123", "am06-policy")).toBe(
+      "[concerto:worker api am06-policy (wt) ses_123]",
+    )
+  })
+
   it("worker prefix omits the suffix when no directory basename exists", () => {
     expect(workerPrefix("backend", "", "ses_123")).toBe("[concerto:worker backend ses_123]")
+  })
+})
+
+describe("concertoTitle", () => {
+  it("shows the name alone, or name — task", () => {
+    expect(concertoTitle("api")).toBe("concerto: api")
+    expect(concertoTitle("api", "am06-policy")).toBe("concerto: api — am06-policy")
   })
 })
 
 describe("buildNudge", () => {
   it("first line dedupes the suffix when basename equals the name", () => {
     for (const outcome of ["succeeded", "failed", "interrupted"] as const) {
-      expect(
-        buildNudge({ name: "backend", sid: "ses_123", directory: "/repo/backend", outcome }),
-      ).toBe(`[concerto:event backend ses_123] ${outcome} — collect and review now`)
+      expect(buildNudge({ name: "backend", sid: "ses_123", directory: "/repo/backend", outcome })).toBe(
+        `[concerto:event backend ses_123] ${outcome} — collect and review now`,
+      )
     }
   })
 
@@ -117,12 +126,7 @@ const reportPart = () => toolPart("concerto_report", "completed")
 
 describe("lastTurnReported", () => {
   it("true when the last assistant step completed a concerto_report", () => {
-    expect(
-      lastTurnReported([
-        user(),
-        assistant([reportPart(), { type: "text", text: "done" }]),
-      ]),
-    ).toBe(true)
+    expect(lastTurnReported([user(), assistant([reportPart(), { type: "text", text: "done" }])])).toBe(true)
   })
 
   it("true for oldest-first input with the report in an earlier step", () => {
@@ -171,10 +175,7 @@ describe("lastTurnReported", () => {
   })
 
   it("treats missing timestamps as 0 and keeps input order", () => {
-    const turn = [
-      assistant([reportPart()]),
-      assistant([{ type: "text", text: "trailing noise" }]),
-    ]
+    const turn = [assistant([reportPart()]), assistant([{ type: "text", text: "trailing noise" }])]
     expect(lastTurnReported(turn)).toBe(true)
   })
 
@@ -208,11 +209,27 @@ describe("isBusy", () => {
   })
 })
 
+describe("isLive", () => {
+  it("false only for failed and interrupted", () => {
+    expect(isLive(undefined)).toBe(true)
+    expect(isLive(null)).toBe(true)
+    expect(isLive("succeeded")).toBe(true)
+    expect(isLive("failed")).toBe(false)
+    expect(isLive("interrupted")).toBe(false)
+  })
+})
+
 describe("isConcertoWorker / workerTag roundtrip", () => {
   it("tags and recognizes workers", () => {
-    const tag = workerTag("backend", "/repo/backend")
-    expect(tag).toEqual({ concerto: { role: "worker", name: "backend", directory: "/repo/backend" } })
+    const tag = workerTag("backend", "/repo/backend", "am06")
+    expect(tag).toEqual({ concerto: { role: "worker", name: "backend", directory: "/repo/backend", task: "am06" } })
     expect(isConcertoWorker(tag)).toBe(true)
+  })
+
+  it("omits the task key when absent", () => {
+    expect(workerTag("backend", "/repo/backend")).toEqual({
+      concerto: { role: "worker", name: "backend", directory: "/repo/backend" },
+    })
   })
 
   it("recognizes legacy tags without a directory field", () => {

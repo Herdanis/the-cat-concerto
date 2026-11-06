@@ -7,11 +7,12 @@ export type WorkerTag = {
     role: "worker"
     name: string
     directory: string
+    task?: string
   }
 }
 
-export function workerTag(name: string, directory: string): WorkerTag {
-  return { concerto: { role: "worker", name, directory } }
+export function workerTag(name: string, directory: string, task?: string): WorkerTag {
+  return { concerto: { role: "worker", name, directory, ...(task ? { task } : {}) } }
 }
 
 export function isConcertoWorker(meta: unknown): boolean {
@@ -30,12 +31,15 @@ export interface NudgeInfo {
   location?: { directory?: string }
 }
 
-export function shouldNudge(info: NudgeInfo, ownDirectory: string): boolean {
+// Owner check: only the orchestrator that spawned the worker may touch it.
+// No directory argument: a plugin instance only sees events from its own
+// location, and a worker's location is its target repo, not the parent's.
+export function shouldNudge(info: NudgeInfo, orchestratorID: string): boolean {
   return (
     isConcertoWorker(info.metadata) &&
-    typeof info.parentID === "string" &&
-    info.parentID !== "" &&
-    info.location?.directory === ownDirectory
+    typeof orchestratorID === "string" &&
+    orchestratorID !== "" &&
+    info.parentID === orchestratorID
   )
 }
 
@@ -46,7 +50,7 @@ export interface PermissionRule {
 }
 
 // Deny-all first, then allow report: last match wins, so workers may
-// report blockers but never spawn, steer, or collect.
+// report blockers but never spawn, steer, collect, or enumerate siblings.
 export function workerDenyRules(): PermissionRule[] {
   return [
     { action: "concerto", resource: "*", effect: "deny" },
@@ -54,8 +58,8 @@ export function workerDenyRules(): PermissionRule[] {
   ]
 }
 
-export function workerPrefix(name: string, directory: string, sid: string): string {
-  return `[concerto:worker ${name}${dirSuffix(name, directory)} ${sid}]`
+export function workerPrefix(name: string, directory: string, sid: string, task?: string): string {
+  return `[concerto:worker ${name}${task ? ` ${task}` : ""}${dirSuffix(name, directory)} ${sid}]`
 }
 
 const dirSuffix = (name: string, directory: string): string => {
@@ -65,6 +69,10 @@ const dirSuffix = (name: string, directory: string): string => {
 
 export function orchestratorPrefix(): string {
   return "[concerto:orchestrator]"
+}
+
+export function concertoTitle(name: string, task?: string): string {
+  return `concerto: ${name}${task ? ` — ${task}` : ""}`
 }
 
 export interface SessionTime {
@@ -77,8 +85,13 @@ export function isBusy(time?: SessionTime): boolean {
   return (time?.busy ?? 0) > (time?.idle ?? 0)
 }
 
-// True when the final turn delivered a completed report — the report
-// prompt already woke the orchestrator, so the nudge is redundant.
+// Live means the worker may still take work: no terminal outcome yet.
+export function isLive(outcome?: Outcome | null): boolean {
+  return outcome !== "failed" && outcome !== "interrupted"
+}
+
+// True when the turn that just finished called concerto_report at all —
+// a worker that reports then adds a closing sentence still counts.
 // context() may return newest-first, so order by created time first.
 export function lastTurnReported(
   messages: Array<{ type?: string; content?: unknown; time?: { created?: unknown } }>,
@@ -91,11 +104,7 @@ export function lastTurnReported(
     const parts = Array.isArray(message.content) ? message.content : []
     const reported = parts.some((part) => {
       const candidate = part as { type?: unknown; name?: unknown; state?: { status?: unknown } }
-      return (
-        candidate?.type === "tool" &&
-        candidate.name === "concerto_report" &&
-        candidate.state?.status === "completed"
-      )
+      return candidate?.type === "tool" && candidate.name === "concerto_report" && candidate.state?.status === "completed"
     })
     if (reported) return true
   }

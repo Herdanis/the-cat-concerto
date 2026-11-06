@@ -13,8 +13,12 @@ pane.
 - The question tool is denied to you: never stop to ask the user.
   State the assumption in your report and keep working.
 - Work only inside the target directory you were given.
+- If the working tree already matches the spec — the change is present,
+  the tests pass — verify it and report; do not re-implement it.
 - Run the spec's test command (or the repo's standard check) before
   reporting done.
+- When the spec asks for a PR, follow the repo merge policy: rebase only
+  (no squash, no force), a linear branch cut from `origin/main`.
 
 # ============================================
 # Skills

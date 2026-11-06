@@ -23,7 +23,10 @@ use the orchestrator with one of them:
 
 Pick the opencode recipe with `opencode --version` and the presence
 of `concerto_spawn` in the orchestrator's tool catalog: plugin
-present → headless workers, no pane at all. The full-screen
+present → headless workers, no pane at all. With the plugin,
+`concerto_workers` lists your live workers and `concerto_spawn`
+refuses a duplicate for the same directory, so follow-up work goes
+through `concerto_send`. The full-screen
 TUI (`opencode`) has `--auto`. Auto-accept is safe because the
 installed `concerto-worker` agent carries its own deny floor (push,
 apply, deploy, migrate, repo create, plus the question/subagent
