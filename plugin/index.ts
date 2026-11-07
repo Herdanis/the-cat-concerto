@@ -12,6 +12,7 @@ import {
   workerDenyRules,
   workerPrefix,
   workerTag,
+  worktreeSlug,
   type Outcome,
 } from "./src/lib"
 
@@ -116,6 +117,8 @@ export default Plugin.define({
           "Spawn a headless concerto-worker session in a target directory with a task spec. Returns sessionID, name, and attach command. " +
           "Refuses when a live worker for the same directory already exists under you — use concerto_send on that session instead. " +
           "Pass parallel: true only for genuine parallel work in one directory. " +
+          "worktree: true creates a git worktree in your own project and spawns the worker there — create-only, concerto never removes it (the human runs wt remove); " +
+          "cross-repo spawns pass an absolute directory without the flag. " +
           "name defaults to the directory basename and is stable identity; task is a short task id shown in the title only.",
         input: schema(
           {
@@ -123,18 +126,46 @@ export default Plugin.define({
             spec: { type: "string", description: "Self-contained task spec: goal, files, constraints, test command" },
             task: { type: "string", description: "Short task id (e.g. am06-policy). Title only, not identity." },
             parallel: { type: "boolean", description: "Allow a second live worker in the same directory (default false)" },
+            worktree: { type: "boolean", description: "Create a git worktree in your own project and spawn there (default false)" },
+            branch: { type: "string", description: "Worktree branch slug override (defaults to the task id)" },
           },
           ["directory", "spec"],
         ),
         options: { namespace: "concerto", codemode: false },
         async execute(raw, context) {
           await assertConcerto(ctx, context, "spawn")
-          const input = raw as { directory: string; spec: string; task?: string; parallel?: boolean }
+          const input = raw as {
+            directory: string
+            spec: string
+            task?: string
+            parallel?: boolean
+            worktree?: boolean
+            branch?: string
+          }
           const own = await ctx.session.get({ sessionID: context.sessionID })
-          const directory = input.directory.startsWith("/")
+          let directory = input.directory.startsWith("/")
             ? input.directory
             : `${(own.location?.directory ?? ctx.location.directory).replace(/\/+$/, "")}/${input.directory}`
-          const name = directory.split("/").filter(Boolean).pop() ?? "worker"
+          let name = directory.split("/").filter(Boolean).pop() ?? "worker"
+          if (input.worktree) {
+            const slug = worktreeSlug(input.branch ?? input.task, name)
+            const projectID = ctx.location.project?.id
+            if (!ctx.worktree?.create || !projectID) {
+              return {
+                content:
+                  "concerto: worktree create unavailable — this session has no worktree API or project context; spawn without worktree or pass an absolute directory",
+              }
+            }
+            try {
+              const created = await ctx.worktree.create({ projectID, name: slug })
+              directory = created.directory
+              name = `wt-${slug}`
+            } catch (error) {
+              return {
+                content: `concerto: worktree create failed: ${error instanceof Error ? error.message : String(error)}`,
+              }
+            }
+          }
           if (!input.parallel) {
             const existing = (await owned(context.sessionID, directory)).find((info) => isLive(info.outcome))
             if (existing) {

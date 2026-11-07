@@ -58,6 +58,9 @@ no pane, no paste, no polling — the plugin wakes the orchestrator
 when a worker finishes, and every cross-session message carries a
 `[concerto:...]` provenance prefix plus `metadata.concerto.role`
 (`worker` or `orchestrator`) — an unmarked message is the user.
+Parallel workers on one repo pass `worktree: true` (optionally
+`branch: <slug>`) to get one checkout each; worktrees are create-only
+and removed by the human with `wt remove`.
 Watch any worker live with
 `opencode --session <id>`. If the plugin is missing (older OpenCode,
 or your setup doesn't auto-discover the plugins directory), the

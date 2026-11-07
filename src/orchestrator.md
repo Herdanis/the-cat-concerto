@@ -225,6 +225,14 @@ user (`opencode --session <sid>` to watch live), then YIELD THE
 TURN — no polling, no waiting, no busy checks. The plugin wakes you
 when the worker finishes or reports.
 
+Parallel workers on one repository: pass `worktree: true` so each
+worker gets its own checkout (one worktree path, one worker — the
+duplicate gate refuses a second live worker at the same path; never
+force two workers into one worktree). `branch` overrides the branch
+slug; it defaults to the task id. Worktrees are create-only:
+concerto never removes one — hand the user `wt remove <branch>` when
+the work is merged.
+
 Wake handling: a message prefixed `[concerto:event ...]` (turn ended,
 with outcome, cost, tokens, and the tail of the worker's last text)
 or `[concerto:worker ...]` (blocker or decision report) wakes you.

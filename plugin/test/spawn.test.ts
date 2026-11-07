@@ -24,9 +24,11 @@ function harness(
     moveLag?: number
     siblings?: Array<Record<string, unknown>>
     events?: Array<{ type: string; data: { sessionID: string } }>
+    worktreeError?: string
   } = {},
 ) {
   const calls: string[] = []
+  const worktreeCalls: Array<{ projectID: string; name?: string }> = []
   const sessions = new Map<string, Record<string, any>>([
     [
       ORCHESTRATOR,
@@ -44,8 +46,15 @@ function harness(
   let created = 0
 
   const ctx: any = {
-    location: { directory: "/repo" },
+    location: { directory: "/repo", project: { id: "prj_1", directory: "/repo", canonical: "/repo" } },
     permission: { assert: async () => undefined },
+    worktree: {
+      create: async (input: { projectID: string; name?: string }) => {
+        worktreeCalls.push(input)
+        if (options.worktreeError) throw new Error(options.worktreeError)
+        return { directory: `/wt/${input.name}` }
+      },
+    },
     event: {
       subscribe: () => ({
         async *[Symbol.asyncIterator]() {
@@ -108,7 +117,7 @@ function harness(
     },
   }
 
-  return { ctx, calls, tools, sessions }
+  return { ctx, calls, tools, sessions, worktreeCalls }
 }
 
 const tool = (tools: Tool[], name: string): Tool => {
@@ -230,6 +239,93 @@ describe("duplicate-spawn gate", () => {
     const result = await tool(tools, "spawn").execute({ directory: "/repo/api", spec: "spec" }, caller)
     expect(JSON.parse(result.content).sessionID).toBe("ses_worker1")
   })
+})
+
+// ============================================
+// Worktree Spawn
+// ============================================
+
+describe("worktree spawn", () => {
+  it("creates a worktree in the orchestrator's project and spawns there", async () => {
+    const { ctx, tools, sessions, worktreeCalls } = harness()
+    await plugin.setup(ctx)
+    const result = await tool(tools, "spawn").execute(
+      { directory: "/repo/api", spec: "spec", task: "am06", worktree: true },
+      caller,
+    )
+
+    expect(worktreeCalls).toEqual([{ projectID: "prj_1", name: "concerto-am06" }])
+    expect(sessions.get("ses_worker1")!.location).toEqual({ directory: "/wt/concerto-am06" })
+    expect(JSON.parse(result.content)).toMatchObject({ name: "wt-concerto-am06", directory: "/wt/concerto-am06" })
+  })
+
+  it("never creates a worktree when the flag is omitted", async () => {
+    const { ctx, calls, tools, worktreeCalls } = harness()
+    await plugin.setup(ctx)
+    await tool(tools, "spawn").execute({ directory: "/repo/api", spec: "spec" }, caller)
+
+    expect(worktreeCalls).toEqual([])
+    expect(calls).toEqual(["get", "create", "move", "get", "synthetic", "archive"])
+  })
+
+  it("refuses when the worktree API or project context is missing", async () => {
+    for (const strip of [
+      (c: any) => delete c.worktree,
+      (c: any) => delete c.location.project,
+    ]) {
+      const { ctx, calls, tools } = harness()
+      strip(ctx)
+      await plugin.setup(ctx)
+      const result = await tool(tools, "spawn").execute(
+        { directory: "/repo/api", spec: "spec", task: "am06", worktree: true },
+        caller,
+      )
+      expect(result.content).toStartWith("concerto: worktree")
+      expect(calls).not.toContain("create")
+    }
+  })
+
+  it("reports a worktree create failure and spawns nothing", async () => {
+    const { ctx, calls, tools } = harness({ worktreeError: "no strategy" })
+    await plugin.setup(ctx)
+    const result = await tool(tools, "spawn").execute(
+      { directory: "/repo/api", spec: "spec", task: "am06", worktree: true },
+      caller,
+    )
+
+    expect(result.content).toStartWith("concerto: worktree create failed:")
+    expect(calls).toEqual(["get"])
+  })
+
+  it("refuses a duplicate spawn in the same worktree path", async () => {
+    const { ctx, calls, tools } = harness({ siblings: [workerRow("ses_live", "/wt/concerto-am06")] })
+    await plugin.setup(ctx)
+    const result = await tool(tools, "spawn").execute(
+      { directory: "/repo/api", spec: "spec", task: "am06", worktree: true },
+      caller,
+    )
+
+    expect(result.content).toContain("ses_live")
+    expect(result.content).toContain("concerto_send")
+    expect(calls).not.toContain("create")
+  })
+
+  it(
+    "reports the worktree path and archives when the session move fails",
+    async () => {
+      const { ctx, calls, tools } = harness({ landIn: "/elsewhere" })
+      await plugin.setup(ctx)
+      const result = await tool(tools, "spawn").execute(
+        { directory: "/repo/api", spec: "spec", task: "am06", worktree: true },
+        caller,
+      )
+
+      expect(result.content).toContain("/wt/concerto-am06")
+      expect(result.content).toContain("session archived")
+      expect(calls.at(-1)).toBe("archive")
+    },
+    10_000,
+  )
 })
 
 describe("owner binding", () => {

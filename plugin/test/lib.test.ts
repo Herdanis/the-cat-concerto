@@ -12,6 +12,7 @@ import {
   workerDenyRules,
   workerPrefix,
   workerTag,
+  worktreeSlug,
 } from "../src/lib"
 
 describe("workerDenyRules", () => {
@@ -247,5 +248,25 @@ describe("isConcertoWorker / workerTag roundtrip", () => {
 describe("WORKER_AGENT", () => {
   it("names the concerto-worker agent", () => {
     expect(WORKER_AGENT).toBe("concerto-worker")
+  })
+})
+
+describe("worktreeSlug", () => {
+  it("prefixes the task and keeps it a single hyphenated token", () => {
+    expect(worktreeSlug("am06-policy", "api")).toBe("concerto-am06-policy")
+  })
+
+  it("lowercases and collapses illegal characters", () => {
+    expect(worktreeSlug("Fix/Auth Bug", "api")).toBe("concerto-fix-auth-bug")
+  })
+
+  it("falls back to the directory base without a task", () => {
+    expect(worktreeSlug(undefined, "api")).toBe("concerto-api")
+  })
+
+  it("caps at 40 chars with no trailing hyphen", () => {
+    const slug = worktreeSlug("a".repeat(60), "api")
+    expect(slug.length).toBeLessThanOrEqual(40)
+    expect(slug.endsWith("-")).toBe(false)
   })
 })

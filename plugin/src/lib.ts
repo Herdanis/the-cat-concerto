@@ -71,6 +71,17 @@ export function orchestratorPrefix(): string {
   return "[concerto:orchestrator]"
 }
 
+// Worktrunk derives the branch name from the worktree directory basename, so
+// the slug must survive as one legal hyphenated token.
+export function worktreeSlug(task: string | undefined, base: string): string {
+  return `concerto-${task ?? base}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40)
+    .replace(/-+$/g, "")
+}
+
 export function concertoTitle(name: string, task?: string): string {
   return `concerto: ${name}${task ? ` — ${task}` : ""}`
 }
