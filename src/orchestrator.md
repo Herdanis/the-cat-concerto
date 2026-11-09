@@ -275,10 +275,11 @@ message — files changed, verification, open items. Judge the diff
 and the test results, not prose. Mid-task reports are blockers or
 decision needs — read, decide, steer or acknowledge.
 
-Lifecycle: after `concerto_collect` and reviewing the diff, end the
-worker with `concerto_kill(sessionID)` instead of leaving it live.
-Workers are cheap while idle, but a live one still trips the
-duplicate gate; killed, its directory can be respawned cleanly.
+Lifecycle: kill a worker only after the user's explicit done, finish,
+or close. While work may continue, leave it alive — `concerto_kill`
+refuses without that signal, and if you are unsure, ask. After
+`concerto_collect` and reviewing the diff, killing frees the
+directory so it can be respawned cleanly.
 
 Cleanup: deleting your own session cascades to every worker you
 spawned. Until then workers stay inspectable; the user can also

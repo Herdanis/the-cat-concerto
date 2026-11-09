@@ -13,6 +13,7 @@ import {
   workerPrefix,
   workerTag,
   worktreeSlug,
+  userSaysDone,
   type Outcome,
 } from "./src/lib"
 
@@ -59,6 +60,27 @@ const lastAssistantText = (messages: Array<{ type: string; content?: unknown }>)
 }
 
 type WorkerMeta = { name: string; directory: string; task?: string }
+
+// Newest real user message: worker reports and orchestrator synthetics carry
+// metadata.concerto and never count as user approval.
+const newestUserText = (
+  messages: Array<{ type?: string; text?: unknown; content?: unknown; metadata?: unknown }>,
+): string => {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i]
+    if (message?.type !== "user" || (message.metadata as { concerto?: unknown } | undefined)?.concerto) continue
+    const parts = Array.isArray(message.content) ? message.content : []
+    const text = [
+      ...(typeof message.text === "string" ? [message.text] : []),
+      ...parts.flatMap((part) => {
+        const candidate = part as { type?: unknown; text?: unknown }
+        return candidate?.type === "text" && typeof candidate.text === "string" ? [candidate.text] : []
+      }),
+    ].join("\n")
+    return text
+  }
+  return ""
+}
 
 const workerMeta = (info: { metadata?: unknown }): WorkerMeta => {
   const concerto = (info.metadata as { concerto?: unknown } | undefined)?.concerto
@@ -282,6 +304,10 @@ export default Plugin.define({
           const info = await ctx.session.get({ sessionID: input.sessionID })
           if (info.parentID !== context.sessionID) {
             return { content: ownerError(input.sessionID, info.parentID, context.sessionID) }
+          }
+          const messages = await ctx.session.context({ sessionID: context.sessionID })
+          if (!userSaysDone(newestUserText(messages))) {
+            return { content: "concerto: kill needs the user's explicit done/finish/close — ask the user before ending a worker" }
           }
           const interrupted = isBusy(info.time)
           if (interrupted) await ctx.session.interrupt({ sessionID: input.sessionID })

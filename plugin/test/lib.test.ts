@@ -9,6 +9,7 @@ import {
   lastTurnReported,
   orchestratorPrefix,
   shouldNudge,
+  userSaysDone,
   workerDenyRules,
   workerPrefix,
   workerTag,
@@ -248,6 +249,25 @@ describe("isConcertoWorker / workerTag roundtrip", () => {
 describe("WORKER_AGENT", () => {
   it("names the concerto-worker agent", () => {
     expect(WORKER_AGENT).toBe("concerto-worker")
+  })
+})
+
+describe("userSaysDone", () => {
+  it("matches explicit done signals case-insensitively", () => {
+    for (const text of ["done", "All finished.", "close it", "Ship it"]) {
+      expect(userSaysDone(text)).toBe(true)
+    }
+  })
+
+  it("rejects non-signals, negations, and glued words", () => {
+    for (const text of ["not done", "keep going", "undone"]) {
+      expect(userSaysDone(text)).toBe(false)
+    }
+  })
+
+  it("rejects a done word followed by continuation phrasing", () => {
+    expect(userSaysDone("done with the first part, keep going")).toBe(false)
+    expect(userSaysDone("not yet, one more pass")).toBe(false)
   })
 })
 

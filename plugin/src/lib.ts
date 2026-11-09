@@ -71,6 +71,14 @@ export function orchestratorPrefix(): string {
   return "[concerto:orchestrator]"
 }
 
+// Word-bounded so "undone"/"closed-minded" never count; negation or continuation vetoes.
+export function userSaysDone(text: string): boolean {
+  return (
+    /\b(done|finished?|closed?|wrap up|shut down|ship it)\b/i.test(text) &&
+    !/\b(not|never|no|keep going|continue|wait|hold on|one more|still)\b|n't\b/i.test(text)
+  )
+}
+
 // Worktrunk derives the branch name from the worktree directory basename, so
 // the slug must survive as one legal hyphenated token.
 export function worktreeSlug(task: string | undefined, base: string): string {

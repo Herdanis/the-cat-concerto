@@ -25,6 +25,7 @@ function harness(
     siblings?: Array<Record<string, unknown>>
     events?: Array<{ type: string; data: { sessionID: string } }>
     worktreeError?: string
+    history?: Array<Record<string, unknown>>
   } = {},
 ) {
   const calls: string[] = []
@@ -123,7 +124,7 @@ function harness(
       update: async () => {
         calls.push("archive")
       },
-      context: async () => [],
+      context: async () => options.history ?? [],
     },
   }
 
@@ -428,12 +429,15 @@ describe("owners can drive their worker", () => {
 // ============================================
 
 describe("kill", () => {
-  const kill = async (row: Record<string, unknown>) => {
-    const { ctx, calls, tools, sessions, interrupts, removals } = harness()
+  const kill = async (
+    row: Record<string, unknown>,
+    history: Array<Record<string, unknown>> = [{ type: "user", text: "all done, close it" }],
+  ) => {
+    const { ctx, calls, tools, sessions, interrupts, removals } = harness({ history })
     sessions.set("ses_w", row)
     await plugin.setup(ctx)
     const result = await tool(tools, "kill").execute({ sessionID: "ses_w" }, caller)
-    return { result, calls, interrupts, removals }
+    return { result, calls, sessions, interrupts, removals }
   }
 
   it("kills an idle worker without interrupting", async () => {
@@ -463,6 +467,38 @@ describe("kill", () => {
     expect(result.content).toBe("concerto: worker ses_w belongs to orchestrator ses_other, not ses_orchestrator")
     expect(calls).toEqual(["get"])
     expect(interrupts).toEqual([])
+    expect(removals).toEqual([])
+  })
+
+  it("refuses when the user has not said done", async () => {
+    const { result, calls, sessions, interrupts, removals } = await kill(ownedWorker(ORCHESTRATOR), [
+      { type: "user", text: "keep going" },
+    ])
+
+    expect(result.content).toBe(
+      "concerto: kill needs the user's explicit done/finish/close — ask the user before ending a worker",
+    )
+    expect(interrupts).toEqual([])
+    expect(removals).toEqual([])
+    expect(calls).toEqual(["get"])
+    expect(sessions.has("ses_w")).toBe(true)
+  })
+
+  it("kills after the user's explicit done signal", async () => {
+    const { removals } = await kill(ownedWorker(ORCHESTRATOR), [
+      { type: "user", text: "okay, all done — close it" },
+    ])
+
+    expect(removals).toEqual(["ses_w"])
+  })
+
+  it("ignores a newer worker report when looking for user approval", async () => {
+    const { result, removals } = await kill(ownedWorker(ORCHESTRATOR), [
+      { type: "user", text: "still working" },
+      { type: "user", text: "done", metadata: { concerto: { role: "worker" } } },
+    ])
+
+    expect(result.content).toStartWith("concerto: kill needs the user's explicit done/finish/close")
     expect(removals).toEqual([])
   })
 })
