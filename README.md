@@ -52,7 +52,7 @@ flags differ per version, see [docs/harnesses.md](docs/harnesses.md).
 Other herdr-supported agents: same doc.
 
 On OpenCode V2 the install also ships the concerto plugin
-(`concerto_spawn`/`workers`/`send`/`report`/`collect` tools). The orchestrator
+(`concerto_spawn`/`workers`/`send`/`report`/`collect`/`kill` tools). The orchestrator
 spawns workers as silent headless sessions instead of herdr panes:
 no pane, no paste, no polling — the plugin wakes the orchestrator
 when a worker finishes, and every cross-session message carries a

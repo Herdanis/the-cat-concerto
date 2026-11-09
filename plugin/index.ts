@@ -271,6 +271,26 @@ export default Plugin.define({
       })
 
       tools.add({
+        name: "kill",
+        description:
+          "End a worker session you own: interrupts a running turn, then deletes the session. Only the worker's owning orchestrator may kill.",
+        input: schema({ sessionID: { type: "string", description: "Worker session id" } }, ["sessionID"]),
+        options: { namespace: "concerto", codemode: false },
+        async execute(raw, context) {
+          await assertConcerto(ctx, context, "kill")
+          const input = raw as { sessionID: string }
+          const info = await ctx.session.get({ sessionID: input.sessionID })
+          if (info.parentID !== context.sessionID) {
+            return { content: ownerError(input.sessionID, info.parentID, context.sessionID) }
+          }
+          const interrupted = isBusy(info.time)
+          if (interrupted) await ctx.session.interrupt({ sessionID: input.sessionID })
+          await ctx.session.remove({ sessionID: input.sessionID })
+          return { content: JSON.stringify({ sessionID: input.sessionID, killed: true, interrupted }) }
+        },
+      })
+
+      tools.add({
         name: "report",
         description: "Worker-only: report a blocker or decision need to the parent orchestrator session.",
         input: schema({ text: { type: "string", description: "Report text" } }, ["text"]),

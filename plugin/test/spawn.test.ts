@@ -29,6 +29,8 @@ function harness(
 ) {
   const calls: string[] = []
   const worktreeCalls: Array<{ projectID: string; name?: string }> = []
+  const interrupts: string[] = []
+  const removals: string[] = []
   const sessions = new Map<string, Record<string, any>>([
     [
       ORCHESTRATOR,
@@ -106,6 +108,14 @@ function harness(
         calls.push("synthetic")
         return { id: "msg", sessionID: input.sessionID, type: "synthetic", time: { created: 0 }, payload: {}, delivery: "steer" }
       },
+      interrupt: async ({ sessionID }: { sessionID: string }) => {
+        calls.push("interrupt")
+        interrupts.push(sessionID)
+      },
+      remove: async ({ sessionID }: { sessionID: string }) => {
+        calls.push("remove")
+        removals.push(sessionID)
+      },
       prompt: async () => {
         calls.push("prompt")
         throw new Error("spawn must not use session.prompt")
@@ -117,7 +127,7 @@ function harness(
     },
   }
 
-  return { ctx, calls, tools, sessions, worktreeCalls }
+  return { ctx, calls, tools, sessions, worktreeCalls, interrupts, removals }
 }
 
 const tool = (tools: Tool[], name: string): Tool => {
@@ -410,6 +420,50 @@ describe("owners can drive their worker", () => {
     expect(entries).toHaveLength(1)
     expect(entries[0]).toMatchObject({ name: "api", sessionID: "ses_mine", directory: "/repo/api", busy: false })
     expect(entries[0]).not.toHaveProperty("lastAssistantText")
+  })
+})
+
+// ============================================
+// Kill
+// ============================================
+
+describe("kill", () => {
+  const kill = async (row: Record<string, unknown>) => {
+    const { ctx, calls, tools, sessions, interrupts, removals } = harness()
+    sessions.set("ses_w", row)
+    await plugin.setup(ctx)
+    const result = await tool(tools, "kill").execute({ sessionID: "ses_w" }, caller)
+    return { result, calls, interrupts, removals }
+  }
+
+  it("kills an idle worker without interrupting", async () => {
+    const { result, calls, interrupts, removals } = await kill(ownedWorker(ORCHESTRATOR))
+
+    expect(removals).toEqual(["ses_w"])
+    expect(interrupts).toEqual([])
+    expect(calls).toEqual(["get", "remove"])
+    expect(JSON.parse(result.content)).toEqual({ sessionID: "ses_w", killed: true, interrupted: false })
+  })
+
+  it("interrupts a busy worker before removing it", async () => {
+    const { result, calls, interrupts, removals } = await kill({
+      ...ownedWorker(ORCHESTRATOR),
+      time: { busy: 1 },
+    })
+
+    expect(interrupts).toEqual(["ses_w"])
+    expect(removals).toEqual(["ses_w"])
+    expect(calls).toEqual(["get", "interrupt", "remove"])
+    expect(JSON.parse(result.content)).toEqual({ sessionID: "ses_w", killed: true, interrupted: true })
+  })
+
+  it("refuses a non-owner without touching the session", async () => {
+    const { result, calls, interrupts, removals } = await kill(ownedWorker("ses_other"))
+
+    expect(result.content).toBe("concerto: worker ses_w belongs to orchestrator ses_other, not ses_orchestrator")
+    expect(calls).toEqual(["get"])
+    expect(interrupts).toEqual([])
+    expect(removals).toEqual([])
   })
 })
 
