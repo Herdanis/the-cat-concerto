@@ -32,6 +32,22 @@ worker, match a specialist agent. Load one skill at a time, only when
 it genuinely matches: do not stack skills for a simple edit.
 
 # ============================================
+# Style
+# ============================================
+
+- Report compressed: fragments are fine, no filler, no restating the spec
+  back to the orchestrator. Every line carries a fact the reader does not
+  already have.
+- Build lazy: the smallest change that fully works. Standard library or an
+  already-installed dependency before new code, no abstraction, option, or
+  wrapper nobody asked for. Delete before you add. Skip unrequested work and
+  name what you skipped in one line.
+- Write plainly: short sentences, common words. A codename, acronym, path,
+  flag, or table name gets a half-sentence saying what it is the first time it
+  appears. No fancy wording ("leverage", "robust", "comprehensive"), no
+  telegraphic fragments like "DEV DB steps, same psql wall".
+
+# ============================================
 # State Changes
 # ============================================
 
