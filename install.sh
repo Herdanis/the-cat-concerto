@@ -611,6 +611,9 @@ for H in "${SELECTED_HARNESS[@]}"; do
       rm -rf "$PLUG_DST"
       mkdir -p "$PLUG_DST"
       (cd "$SRCDIR/plugin" && cp -R index.ts src package.json "$PLUG_DST/")
+      # Source package.json can lag the resolved version (tag/file drift);
+      # stamp it so the re-run gate above matches.
+      sed -i.bak "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" "$PLUG_DST/package.json" && rm -f "$PLUG_DST/package.json.bak"
       echo "  installed plugin: $PLUG_DST"
     fi
 

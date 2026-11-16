@@ -3,6 +3,7 @@ import {
   WORKER_AGENT,
   buildNudge,
   concertoTitle,
+  endsOnReport,
   isBusy,
   isConcertoWorker,
   isLive,
@@ -185,6 +186,28 @@ describe("lastTurnReported", () => {
     expect(lastTurnReported([])).toBe(false)
     expect(lastTurnReported([{ type: "assistant" }])).toBe(false)
     expect(lastTurnReported([{ type: "assistant", content: "not-a-list" }])).toBe(false)
+  })
+})
+
+describe("endsOnReport", () => {
+  it("true when the newest assistant message ends on a report tool call", () => {
+    expect(endsOnReport([user(), assistant([{ type: "text", text: "done" }, reportPart()])])).toBe(true)
+  })
+
+  it("false when a text part follows the report", () => {
+    expect(endsOnReport([assistant([reportPart(), { type: "text", text: "summary noise" }])])).toBe(false)
+  })
+
+  it("true for the stored tool name `report`", () => {
+    expect(endsOnReport([assistant([toolPart("report", "completed")])])).toBe(true)
+  })
+
+  it("false for empty, absent, or malformed content", () => {
+    expect(endsOnReport([])).toBe(false)
+    expect(endsOnReport([{ type: "assistant" }])).toBe(false)
+    expect(endsOnReport([{ type: "assistant", content: "not-a-list" }])).toBe(false)
+    expect(endsOnReport([assistant([])])).toBe(false)
+    expect(endsOnReport([assistant([toolPart("concerto_report", "running")])])).toBe(false)
   })
 })
 

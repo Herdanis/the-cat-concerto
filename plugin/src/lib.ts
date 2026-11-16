@@ -130,6 +130,23 @@ export function lastTurnReported(
   return false
 }
 
+// True when the newest assistant message's last part is a completed report
+// call: a trailing text part means the report is still a draft, so the nudge
+// still lands. Stored tool name is "report", LLM-facing name "concerto_report".
+export function endsOnReport(messages: Array<{ type?: string; content?: unknown }>): boolean {
+  if (!Array.isArray(messages) || messages.length === 0) return false
+  const newest = messages[messages.length - 1] as { type?: unknown; content?: unknown } | undefined
+  if (newest?.type !== "assistant" || !Array.isArray(newest.content)) return false
+  const last = newest.content[newest.content.length - 1] as
+    | { type?: unknown; name?: unknown; state?: { status?: unknown } }
+    | undefined
+  return (
+    last?.type === "tool" &&
+    (last.name === "report" || last.name === "concerto_report") &&
+    last.state?.status === "completed"
+  )
+}
+
 // Missing/invalid timestamps sort as 0 and keep input order (stable sort).
 const created = (message: { time?: { created?: unknown } }): number =>
   typeof message?.time?.created === "number" && Number.isFinite(message.time.created) ? message.time.created : 0

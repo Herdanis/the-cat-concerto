@@ -59,9 +59,11 @@ function harness(
       },
     },
     event: {
-      subscribe: () => ({
+      subscribe: (input: { types?: string[] } = {}) => ({
         async *[Symbol.asyncIterator]() {
-          for (const event of options.events ?? []) yield event
+          for (const event of options.events ?? []) {
+            if (!input.types || input.types.includes(event.type)) yield event
+          }
         },
       }),
     },
@@ -512,6 +514,16 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 20))
 
 const finished = (sid: string) => [{ type: "session.execution.succeeded", data: { sessionID: sid } }]
 
+const ownerlessRow = () => ({
+  id: "ses_done",
+  agent: "build",
+  location: { directory: "/repo/api" },
+  metadata: { concerto: { role: "worker", name: "api", directory: "/repo/api" } },
+  time: { created: 0, updated: 0 },
+  cost: 0.5,
+  tokens: { input: 10, output: 2 },
+})
+
 describe("wake loop routing", () => {
   const run = async (agent: string | undefined, parentID: string | undefined) => {
     const rows: Array<Record<string, unknown>> = [
@@ -546,8 +558,79 @@ describe("wake loop routing", () => {
     expect(String(nudges[0].text)).toContain("tokens 10/2")
   })
 
-  it("never nudges when the parent is another worker (subagent child)", async () => {
-    expect(await run(WORKER_AGENT, "ses_other_worker")).toHaveLength(0)
+  it("never nudges a non-concerto session, whatever its parent", async () => {
+    const row = { ...ownerlessRow(), parentID: ORCHESTRATOR, metadata: undefined }
+    const { ctx, sessions } = harness({ siblings: [row], events: finished("ses_done") })
+    sessions.set("ses_done", row)
+    const nudges: Array<Record<string, unknown>> = []
+    ctx.session.synthetic = async (input: Record<string, unknown>) => {
+      nudges.push(input)
+    }
+    ctx.session.context = async () => []
+    await plugin.setup(ctx)
+    await settle()
+    expect(nudges).toEqual([])
+  })
+
+  // Real spawned workers carry agent "concerto-worker", so the gate must not
+  // treat the worker agent as disqualifying.
+  it("nudges a worker whose agent is concerto-worker", async () => {
+    const nudges = await run(WORKER_AGENT, ORCHESTRATOR)
+    expect(nudges).toHaveLength(1)
+    expect(nudges[0]).toMatchObject({ sessionID: ORCHESTRATOR, delivery: "steer" })
+  })
+
+  it("never nudges a worker with no parent, whatever its agent", async () => {
+    expect(await run(WORKER_AGENT, undefined)).toHaveLength(0)
+  })
+
+  it("wakes from the idle notice for a concerto-worker session", async () => {
+    const rows = [{ ...ownerlessRow(), agent: WORKER_AGENT, parentID: ORCHESTRATOR }]
+    const { ctx, sessions } = harness({ siblings: rows, events: [{ type: "session.idle", data: { sessionID: "ses_done" } }] })
+    for (const row of rows) sessions.set(String(row.id), row)
+    const nudges: Array<Record<string, unknown>> = []
+    ctx.session.synthetic = async (input: Record<string, unknown>) => {
+      nudges.push(input)
+    }
+    ctx.session.context = async () => [{ type: "assistant", content: [{ type: "text", text: "no report" }] }]
+    await plugin.setup(ctx)
+    await settle()
+    expect(nudges).toHaveLength(1)
+    expect(nudges[0]).toMatchObject({ sessionID: ORCHESTRATOR, delivery: "steer" })
+  })
+
+  // Idle-only providers: the execution event never arrives, so the idle notice
+  // must carry the nudge on its own.
+  it("nudges once from the idle notice when no execution event fires", async () => {
+    const rows = [{ ...ownerlessRow(), parentID: ORCHESTRATOR }]
+    const { ctx, sessions } = harness({ siblings: rows, events: [{ type: "session.idle", data: { sessionID: "ses_done" } }] })
+    for (const row of rows) sessions.set(String(row.id), row)
+    const nudges: Array<Record<string, unknown>> = []
+    ctx.session.synthetic = async (input: Record<string, unknown>) => {
+      nudges.push(input)
+    }
+    ctx.session.context = async () => [{ type: "assistant", content: [{ type: "text", text: "no report" }] }]
+    await plugin.setup(ctx)
+    await settle()
+    expect(nudges).toHaveLength(1)
+    expect(String(nudges[0].text)).toContain("[concerto:event api ses_done] succeeded")
+  })
+
+  it("stays silent when the idle turn already ended on a report", async () => {
+    const rows = [{ ...ownerlessRow(), parentID: ORCHESTRATOR }]
+    const events = [{ type: "session.idle", data: { sessionID: "ses_done" } }]
+    const { ctx, sessions } = harness({ siblings: rows, events })
+    for (const row of rows) sessions.set(String(row.id), row)
+    const nudges: Array<Record<string, unknown>> = []
+    ctx.session.synthetic = async (input: Record<string, unknown>) => {
+      nudges.push(input)
+    }
+    ctx.session.context = async () => [
+      { type: "assistant", content: [{ type: "tool", name: "report", state: { status: "completed" } }] },
+    ]
+    await plugin.setup(ctx)
+    await settle()
+    expect(nudges).toEqual([])
   })
 
   it("never nudges a worker with no parent", async () => {

@@ -6,6 +6,7 @@ import {
   isBusy,
   isConcertoWorker,
   isLive,
+  endsOnReport,
   lastTurnReported,
   orchestratorPrefix,
   shouldNudge,
@@ -96,12 +97,14 @@ const workerMeta = (info: { metadata?: unknown }): WorkerMeta => {
 const ownerError = (sid: string, parentID: string | undefined, caller: string): string =>
   `concerto: worker ${sid} belongs to orchestrator ${parentID ?? "none"}, not ${caller}`
 
-// A worker's owner must be a real orchestrator session: a plain parent or a
-// subagent child is not a delivery target. Returns "" when it must not nudge.
+// The owner is the worker's parentID: a session with no parent has no owner.
+// A worker's parent is its orchestrator, never itself, so no session can be
+// its own delivery target.
 const route = (info: { parentID?: string | null; agent?: string }): string =>
-  !info.parentID || info.agent === WORKER_AGENT ? "" : info.parentID
+  info.parentID ? info.parentID : ""
 
 const MOVE_DEADLINE_MS = 3000
+const NUDGE_DEDUPE_MS = 60_000
 
 // session.move lands at the next delivery boundary, so reads right after it can
 // still show the pre-move directory. Poll until the target shows up; anything
@@ -374,8 +377,36 @@ export default Plugin.define({
     // session, so the owner is resolved from the worker; `route` states the
     // accepted owner only for workers whose parent is a real orchestrator
     // session, and delivery goes to that same parent. Steer delivery lands
-    // even inside a busy turn.
+    // even inside a busy turn. Two loops drive the same sendNudge.
     const controller = new AbortController()
+    // Cross-loop dedupe: one nudge per worker per 60s, whichever loop got there first.
+    const nudged = new Map<string, number>()
+    const sendNudge = async (info: Awaited<ReturnType<typeof ctx.session.get>>, outcome: Outcome) => {
+      const last = nudged.get(info.id)
+      if (last !== undefined && Date.now() - last < NUDGE_DEDUPE_MS) return
+      if (!info.parentID) return
+      let messages: Awaited<ReturnType<typeof ctx.session.context>> = []
+      try {
+        messages = await ctx.session.context({ sessionID: info.id })
+        if (lastTurnReported(messages)) return
+      } catch {
+        // No history readable: fall through and send the nudge.
+      }
+      nudged.set(info.id, Date.now())
+      const meta = workerMeta(info)
+      const tail = lastAssistantText(messages).trim().slice(-300)
+      await ctx.session.synthetic({
+        sessionID: info.parentID,
+        text: [
+          buildNudge({ name: meta.name, sid: info.id, directory: meta.directory, outcome }),
+          `cost $${info.cost.toFixed(4)} · tokens ${info.tokens.input}/${info.tokens.output}`,
+          ...(tail ? [tail] : []),
+        ].join("\n"),
+        delivery: "steer",
+        metadata: PROVENANCE(info.id, "worker", meta.name, meta.task),
+      })
+    }
+
     void (async () => {
       for await (const event of ctx.event.subscribe({
         types: ["session.execution.succeeded", "session.execution.failed", "session.execution.interrupted"],
@@ -388,26 +419,25 @@ export default Plugin.define({
           // decides whether that owner is reachable at all.
           const owner = route(info)
           if (!shouldNudge(info, owner)) continue
-          const outcome = event.type.replace("session.execution.", "") as Outcome
-          let messages: Awaited<ReturnType<typeof ctx.session.context>> = []
-          try {
-            messages = await ctx.session.context({ sessionID: info.id })
-            if (lastTurnReported(messages)) continue
-          } catch {
-            // No history readable: fall through and send the nudge.
-          }
-          const meta = workerMeta(info)
-          const tail = lastAssistantText(messages).trim().slice(-300)
-          await ctx.session.synthetic({
-            sessionID: owner,
-            text: [
-              buildNudge({ name: meta.name, sid: info.id, directory: meta.directory, outcome }),
-              `cost $${info.cost.toFixed(4)} · tokens ${info.tokens.input}/${info.tokens.output}`,
-              ...(tail ? [tail] : []),
-            ].join("\n"),
-            delivery: "steer",
-            metadata: PROVENANCE(info.id, "worker", meta.name, meta.task),
-          })
+          await sendNudge(info, event.type.replace("session.execution.", "") as Outcome)
+        } catch {
+          // A bad event must not kill the wake loop.
+        }
+      }
+    })()
+
+    // Second wake: session.execution.succeeded never fires for completion-only
+    // turns on some providers, so the idle notice drives the same nudge.
+    void (async () => {
+      for await (const event of ctx.event.subscribe({ types: ["session.idle"], signal: controller.signal })) {
+        try {
+          const info = await ctx.session.get({ sessionID: event.data.sessionID })
+          const owner = route(info)
+          if (!shouldNudge(info, owner) || isBusy(info.time)) continue
+          const messages = await ctx.session.context({ sessionID: info.id })
+          if (endsOnReport(messages)) continue
+          const outcome = info.outcome === "failed" || info.outcome === "interrupted" ? info.outcome : "succeeded"
+          await sendNudge(info, outcome)
         } catch {
           // A bad event must not kill the wake loop.
         }

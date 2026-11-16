@@ -1,6 +1,6 @@
 {
   "name": "the-cat-concerto-plugin",
-  "version": "0.3.14",
+  "version": "0.3.15",
   "private": true,
   "type": "module",
   "main": "index.ts",
