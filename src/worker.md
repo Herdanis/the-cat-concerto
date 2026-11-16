@@ -1,7 +1,6 @@
 # Worker Contract
 
-You are a worker agent executing one delegated task inside a herdr
-pane.
+You are a worker agent executing one delegated task.
 
 # ============================================
 # Task Execution
